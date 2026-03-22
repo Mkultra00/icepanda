@@ -100,6 +100,14 @@ const scoreMentionReliability = (url: string): "HIGH" | "MEDIUM" | "LOW" => {
 };
 
 const NAME_STOPWORDS = new Set(["dr", "mr", "mrs", "ms", "prof", "professor", "sir"]);
+const INVESTIGATION_PLACEHOLDER_TOKENS = new Set(["surname", "unknown", "unnamed", "none", "null", "na", "n/a"]);
+
+const sanitizeInvestigationName = (value: string) =>
+  normalizePersonName(value.replace(/\([^)]*\)/g, " "))
+    .split(" ")
+    .filter(Boolean)
+    .filter((token) => !INVESTIGATION_PLACEHOLDER_TOKENS.has(token))
+    .join(" ");
 
 const tokenizeIdentity = (value: string) =>
   normalizePersonName(value)
@@ -173,19 +181,22 @@ const CATEGORY_SEARCH_CONFIGS: CategorySearchConfig[] = [
 
 const searchWebMentions = async (fullName: string, config: CategorySearchConfig): Promise<WebMention[]> => {
   try {
-    const nameTokens = tokenizeIdentity(fullName);
+    const cleanedName = sanitizeInvestigationName(fullName) || normalizePersonName(fullName);
+    const nameTokens = tokenizeIdentity(cleanedName);
     const searchIdentity = nameTokens.join(" ").trim() || fullName;
 
     // Build queries: use both quoted and unquoted name for broader coverage
     let queries: string[];
     if (config.category === "Epstein Files") {
       // Epstein searches need to be more aggressive — names may appear in various forms in documents
-      const lastName = nameTokens[nameTokens.length - 1] || fullName;
+      const lastName = nameTokens[nameTokens.length - 1] || nameTokens[0] || searchIdentity;
       queries = [
+        `${searchIdentity} Epstein`,
         `${searchIdentity} Epstein flight logs`,
         `${searchIdentity} Epstein black book`,
         `${searchIdentity} Jeffrey Epstein`,
         `"${searchIdentity}" Epstein`,
+        `site:epsteinweb.org ${searchIdentity}`,
         `${lastName} Epstein flight logs lolita express`,
         `${lastName} Epstein black book contact list`,
         `${searchIdentity} Ghislaine Maxwell`,
@@ -211,6 +222,7 @@ const searchWebMentions = async (fullName: string, config: CategorySearchConfig)
       if (!response.ok) continue;
       const html = await response.text();
       let match: RegExpExecArray | null;
+      linkRegex.lastIndex = 0;
 
       while ((match = linkRegex.exec(html)) !== null) {
         const href = unwrapDuckDuckGoRedirect(match[1]);
@@ -250,7 +262,8 @@ const searchWebMentions = async (fullName: string, config: CategorySearchConfig)
 
 // Direct Epstein document search — fetches known public sources and scans for name
 const searchEpsteinDocumentsDirect = async (fullName: string): Promise<WebMention[]> => {
-  const nameTokens = tokenizeIdentity(fullName);
+  const cleanedName = sanitizeInvestigationName(fullName) || normalizePersonName(fullName);
+  const nameTokens = tokenizeIdentity(cleanedName);
   if (!nameTokens.length) return [];
 
   const mentions: WebMention[] = [];
@@ -260,9 +273,44 @@ const searchEpsteinDocumentsDirect = async (fullName: string): Promise<WebMentio
   // Comprehensive Epstein document queries across multiple source types
   const lastName = nameTokens[nameTokens.length - 1];
   const fullNameStr = nameTokens.join(" ");
+
+  // Direct search against Epstein Web Tracker (WordPress search)
+  try {
+    const trackerResponse = await fetch(`https://epsteinweb.org/?s=${encodeURIComponent(fullNameStr)}`, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+    });
+    if (trackerResponse.ok) {
+      const trackerHtml = await trackerResponse.text();
+      const trackerResultRegex = /<h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+      let trackerMatch: RegExpExecArray | null;
+      while ((trackerMatch = trackerResultRegex.exec(trackerHtml)) !== null) {
+        const href = trackerMatch[1];
+        const title = decodeHtmlEntities(stripHtml(trackerMatch[2] ?? ""));
+        if (!href || !title || seenUrls.has(href) || !href.includes("epsteinweb.org")) continue;
+
+        const combined = normalizePersonName(`${title} ${href}`);
+        const hasNameToken = nameTokens.some((token) => token.length >= 3 && combined.includes(token));
+        if (!hasNameToken) continue;
+
+        mentions.push({
+          title,
+          snippet: "Matched in Epstein Web Tracker direct source search.",
+          url: href,
+          reliability: "HIGH",
+        });
+        seenUrls.add(href);
+        if (mentions.length >= 8) break;
+      }
+    }
+  } catch (err) {
+    console.warn("Epstein Web Tracker direct search failed:", err);
+  }
+
   const specificQueries = [
+    `${fullNameStr} Epstein`,
     // Black book sources
     `site:epsteinsblackbook.com ${fullNameStr}`,
+    `site:epsteinweb.org ${fullNameStr}`,
     `"epstein" "black book" "${lastName}"`,
     `"epstein" "contact list" "${lastName}"`,
     // Flight logs
@@ -298,6 +346,7 @@ const searchEpsteinDocumentsDirect = async (fullName: string): Promise<WebMentio
       if (!response.ok) continue;
       const html = await response.text();
       let match: RegExpExecArray | null;
+      linkRegex.lastIndex = 0;
 
       while ((match = linkRegex.exec(html)) !== null) {
         const href = unwrapDuckDuckGoRedirect(match[1]);
