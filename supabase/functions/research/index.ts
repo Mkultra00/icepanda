@@ -261,8 +261,8 @@ const addWebFallbackFindings = async (report: any, fullName?: string) => {
       confidence: mention.reliability === "HIGH" ? 70 : mention.reliability === "MEDIUM" ? 55 : 40,
       severity: config.severityDefault,
       summary: mention.snippet
-        ? `Open web scan found a possible ${config.category.toLowerCase()} mention for ${fullName}. Snippet: ${mention.snippet}. Manual verification required.`
-        : `Open web scan found a possible ${config.category.toLowerCase()} mention for ${fullName}. Manual verification required.`,
+        ? `Open web scan found a possible ${config.category.toLowerCase()} mention for ${fullName}. Snippet: ${mention.snippet}. ⚠️ Note: Web search may return results for different people with a similar name — manual verification required.`
+        : `Open web scan found a possible ${config.category.toLowerCase()} mention for ${fullName}. ⚠️ Note: Web search may return results for different people with a similar name — manual verification required.`,
     }));
 
     if (existingCategory) {
