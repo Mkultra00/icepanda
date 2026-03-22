@@ -232,7 +232,8 @@ const addWebFallbackFindings = async (report: any, fullName?: string) => {
   for (const config of CATEGORY_SEARCH_CONFIGS) {
     const existingCategory = findings.find((item: any) => item?.category === config.category);
     const existingItems = Array.isArray(existingCategory?.items) ? existingCategory.items : [];
-    if (existingItems.length > 0) continue;
+    // Always run web search to enhance findings, not just as fallback
+    const existingUrls = new Set(existingItems.map((item: any) => item.source).filter(Boolean));
 
     const webMentions = await searchWebMentions(fullName, config);
 
@@ -246,22 +247,26 @@ const addWebFallbackFindings = async (report: any, fullName?: string) => {
 
     if (!webMentions.length) continue;
 
+    // Filter out duplicates that already exist
+    const newMentions = webMentions.filter((m) => !existingUrls.has(m.url));
+    if (!newMentions.length) continue;
+
     anyMentionsFound = true;
     categoriesWithMentions.push(config.category);
 
-    const mappedItems = webMentions.slice(0, 3).map((mention) => ({
-      title: `Potential ${config.category} mention: ${mention.title}`,
+    const mappedItems = newMentions.slice(0, 3).map((mention) => ({
+      title: `Web: ${mention.title}`,
       source: mention.url,
       reliability: mention.reliability,
       confidence: mention.reliability === "HIGH" ? 70 : mention.reliability === "MEDIUM" ? 55 : 40,
       severity: config.severityDefault,
       summary: mention.snippet
-        ? `Open web result indicates a possible ${config.category.toLowerCase()} mention for ${fullName}. Snippet: ${mention.snippet}. Manual verification required.`
-        : `Open web result indicates a possible ${config.category.toLowerCase()} mention for ${fullName}. Manual verification required.`,
+        ? `Open web scan found a possible ${config.category.toLowerCase()} mention for ${fullName}. Snippet: ${mention.snippet}. Manual verification required.`
+        : `Open web scan found a possible ${config.category.toLowerCase()} mention for ${fullName}. Manual verification required.`,
     }));
 
     if (existingCategory) {
-      existingCategory.items = mappedItems;
+      existingCategory.items = [...existingItems, ...mappedItems];
     } else {
       findings.push({ category: config.category, items: mappedItems });
     }
