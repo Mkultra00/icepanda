@@ -12,6 +12,7 @@ type LinkedInAnchor = {
   company?: string;
   location?: string;
   initials?: string;
+  profileImageUrl?: string;
 };
 
 const REQUIRED_CATEGORIES = [
