@@ -29,6 +29,7 @@ const GitHubReportPage = () => {
   const [report, setReport] = useState<GitHubIntegrityReport | null>(null);
   const [showRedFlags, setShowRedFlags] = useState(true);
   const [showPositive, setShowPositive] = useState(true);
+  const [showSimilar, setShowSimilar] = useState(true);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("ice_panda_github_report");
