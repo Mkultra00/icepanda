@@ -6,7 +6,8 @@ import { ScanOverlay } from "../components/ScanOverlay";
 import {
   Shield, AlertTriangle, Scale, FileText, Globe, Search,
   Download, Share2, Volume2, MessageSquare, ChevronDown, ChevronRight,
-  ExternalLink, MapPin, GraduationCap, Briefcase, Award, User, Mic
+  ExternalLink, MapPin, GraduationCap, Briefcase, Award, User, Mic,
+  Brain, Target, MessageCircle, Crown, Gauge, ShieldAlert
 } from "lucide-react";
 import { ResearchReport } from "../hooks/useResearch";
 
@@ -67,6 +68,15 @@ const bioSections = [
   { key: "notableAchievements", label: "Notable Achievements", icon: Award, color: "#F59E0B" },
   { key: "personalLife", label: "Personal Life", icon: User, color: "#EC4899" },
   { key: "publicPresence", label: "Public Presence", icon: Mic, color: "#06B6D4" },
+] as const;
+
+const psychSections = [
+  { key: "personalityTraits", label: "Personality Traits", icon: Brain, color: "#A855F7" },
+  { key: "motivations", label: "Motivations", icon: Target, color: "#F43F5E" },
+  { key: "communicationStyle", label: "Communication Style", icon: MessageCircle, color: "#3B82F6" },
+  { key: "leadershipStyle", label: "Leadership Style", icon: Crown, color: "#F59E0B" },
+  { key: "riskTolerance", label: "Risk Tolerance", icon: Gauge, color: "#10B981" },
+  { key: "potentialVulnerabilities", label: "Potential Vulnerabilities", icon: ShieldAlert, color: "#EF4444" },
 ] as const;
 
 const ReportPage = () => {
@@ -212,6 +222,34 @@ const ReportPage = () => {
                   {bioSections.map(({ key, label, icon: Icon, color }, i) => {
                     const content = report.biography?.[key as keyof typeof report.biography];
                     if (!content || content === "No public information available.") return null;
+                    return (
+                      <motion.div
+                        key={key}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.15 + i * 0.08, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                        className="glass rounded-xl p-5"
+                      >
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-7 h-7 rounded-md flex items-center justify-center" style={{ backgroundColor: `${color}15`, border: `1px solid ${color}30` }}>
+                            <Icon className="w-3.5 h-3.5" style={{ color }} />
+                          </div>
+                          <h4 className="text-sm font-semibold text-foreground">{label}</h4>
+                        </div>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{content}</p>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Psychological Profile */}
+              {report.psychProfile && (
+                <div className="space-y-3">
+                  <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Psychological Profile</h3>
+                  {psychSections.map(({ key, label, icon: Icon, color }, i) => {
+                    const content = report.psychProfile?.[key as keyof typeof report.psychProfile];
+                    if (!content || content === "Insufficient public data for assessment.") return null;
                     return (
                       <motion.div
                         key={key}
