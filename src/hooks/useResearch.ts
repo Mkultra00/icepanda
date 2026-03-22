@@ -19,6 +19,15 @@ export interface BiographySection {
   publicPresence?: string;
 }
 
+export interface PsychProfile {
+  personalityTraits?: string;
+  motivations?: string;
+  communicationStyle?: string;
+  leadershipStyle?: string;
+  riskTolerance?: string;
+  potentialVulnerabilities?: string;
+}
+
 export interface FindingItem {
   title: string;
   source: string;
