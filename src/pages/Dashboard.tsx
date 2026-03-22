@@ -20,6 +20,7 @@ const Dashboard = () => {
   const [photoModalOpen, setPhotoModalOpen] = useState(false);
   const navigate = useNavigate();
   const { runResearch, loading } = useResearch();
+  const { runResearch: runPhotoResearch, loading: photoLoading } = useResearch();
   const { analyzeRepo, loading: githubLoading } = useGitHubIntegrity();
 
   const handleStartInvestigation = async (imageBase64: string | null, context: string, scopes: Record<string, boolean>) => {
