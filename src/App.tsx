@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "./pages/Dashboard";
 import LiveInvestigation from "./pages/LiveInvestigation";
 import ReportPage from "./pages/ReportPage";
+import GitHubReportPage from "./pages/GitHubReportPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,6 +21,7 @@ const App = () => (
           <Route path="/" element={<Dashboard />} />
           <Route path="/investigation/:id" element={<LiveInvestigation />} />
           <Route path="/report/:id" element={<ReportPage />} />
+          <Route path="/github-report" element={<GitHubReportPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
