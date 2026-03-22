@@ -609,13 +609,18 @@ serve(async (req) => {
     }
 
     const anchoredReport = enforceAnchorOnReport(report, anchor);
+    const enrichedReport = await addEpsteinWebFallbackFindings(
+      anchoredReport,
+      anchor.fullName ?? anchoredReport?.target?.fullName,
+    );
+
     if (hasImage && !identityAligned) {
-      return new Response(JSON.stringify(applyIdentityMismatchSafeguards(anchoredReport, anchor)), {
+      return new Response(JSON.stringify(applyIdentityMismatchSafeguards(enrichedReport, anchor)), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(JSON.stringify(anchoredReport), {
+    return new Response(JSON.stringify(enrichedReport), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
