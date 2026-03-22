@@ -5,15 +5,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-type LinkedInAnchor = {
-  normalizedUrl: string;
+type ProfileAnchor = {
   fullName?: string;
   title?: string;
   company?: string;
   location?: string;
   initials?: string;
-  profileImageUrl?: string;
   profileSnapshot?: string;
+  source: "screenshot" | "context";
 };
 
 const REQUIRED_CATEGORIES = [
@@ -34,172 +33,10 @@ const BIOGRAPHY_KEYS = [
   "publicPresence",
 ] as const;
 
-const normalizeLinkedInUrl = (rawUrl: string) => {
-  const trimmed = rawUrl.trim();
-  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  const url = new URL(withProtocol);
-  if (!url.hostname.toLowerCase().includes("linkedin.com") || !url.pathname.startsWith("/in/")) {
-    throw new Error("Please provide a valid LinkedIn profile URL (linkedin.com/in/...)");
-  }
-  url.protocol = "https:";
-  url.search = "";
-  url.hash = "";
-  return url.toString().replace(/\/$/, "");
-};
-
 const toInitials = (name?: string) => {
   if (!name) return "NA";
   const parts = name.split(/\s+/).filter(Boolean);
   return parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("") || "NA";
-};
-
-const slugToNameFallback = (normalizedUrl: string) => {
-  const slug = normalizedUrl.split("/in/")[1]?.split("/")[0] ?? "";
-  if (!slug) return undefined;
-  return decodeURIComponent(slug).replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).trim();
-};
-
-const looksLikePersonName = (value?: string) => {
-  if (!value) return false;
-  const cleaned = value.trim();
-  if (!cleaned || cleaned.length < 3 || cleaned.length > 60) return false;
-  if (/\d/.test(cleaned) || /[:|@]/.test(cleaned)) return false;
-
-  const disallowed = ["linkedin", "future", "profile", "search", "people", "contact", "info", "jobs"];
-  const lower = cleaned.toLowerCase();
-  if (disallowed.some((word) => lower.includes(word))) return false;
-
-  const tokens = cleaned.split(/\s+/).filter(Boolean);
-  if (tokens.length < 2 || tokens.length > 5) return false;
-
-  const alphaTokens = tokens.filter((t) => /^[a-zA-Z'’.-]+$/.test(t));
-  if (alphaTokens.length < 2) return false;
-
-  const capitalizedTokens = tokens.filter((t) => /^[A-Z][a-zA-Z'’.-]+$/.test(t));
-  return capitalizedTokens.length >= 2;
-};
-
-const createProfileSnapshot = (markdown: string) => {
-  const cleaned = markdown
-    .split("\n")
-    .filter((line) => {
-      const lower = line.toLowerCase();
-      return (
-        !line.startsWith("![") &&
-        !lower.startsWith("title:") &&
-        !lower.startsWith("source url:") &&
-        !lower.startsWith("markdown content:")
-      );
-    })
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-
-  return cleaned.slice(0, 5000);
-};
-
-const normalizePersonName = (name?: string) =>
-  (name ?? "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-const isIdentityAligned = (anchor: LinkedInAnchor, reportedName?: string) => {
-  if (!anchor.fullName || !reportedName) return true;
-
-  const anchorTokens = normalizePersonName(anchor.fullName).split(" ").filter(Boolean);
-  const reportedTokens = normalizePersonName(reportedName).split(" ").filter(Boolean);
-  if (!anchorTokens.length || !reportedTokens.length) return true;
-
-  const sharedTokens = anchorTokens.filter((token) => reportedTokens.includes(token));
-  const anchorLast = anchorTokens[anchorTokens.length - 1];
-  const reportedLast = reportedTokens[reportedTokens.length - 1];
-  const firstInitialMatch = anchorTokens[0]?.[0] === reportedTokens[0]?.[0];
-
-  return sharedTokens.length >= 2 || (Boolean(anchorLast) && anchorLast === reportedLast && firstInitialMatch);
-};
-
-const applyIdentityMismatchSafeguards = (report: any, anchor: LinkedInAnchor) => {
-  report.biography = report.biography ?? {};
-  for (const key of BIOGRAPHY_KEYS) {
-    report.biography[key] = "No public information available.";
-  }
-
-  report.confidenceScore = Math.min(normalizeScore(report.confidenceScore), 35);
-  report.executiveSummary = `Identity mismatch warning: external evidence could not be confidently matched to ${anchor.fullName ?? "the LinkedIn target"}. Biography has been intentionally constrained.`;
-
-  const identitySignals = Array.isArray(report.identitySignals) ? report.identitySignals : [];
-  identitySignals.unshift({
-    label: "Identity safeguard applied: non-matching subject details were suppressed",
-    verified: false,
-  });
-  report.identitySignals = identitySignals;
-
-  return report;
-};
-
-// Portrait search removed — web image search returns wrong-person photos.
-// Only LinkedIn profile images (from Jina scrape) are trustworthy.
-
-const fetchLinkedInAnchor = async (normalizedUrl: string): Promise<LinkedInAnchor> => {
-  const anchor: LinkedInAnchor = { normalizedUrl };
-  try {
-    const noProtocol = normalizedUrl.replace(/^https?:\/\//i, "");
-    const jinaUrl = `https://r.jina.ai/http://${noProtocol}`;
-    const response = await fetch(jinaUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
-    const markdown = await response.text();
-    anchor.profileSnapshot = createProfileSnapshot(markdown);
-
-    const titleLineMatch = markdown.match(/^Title:\s*(.+)$/m);
-    const titleLine = titleLineMatch?.[1]?.trim();
-    if (titleLine) {
-      const cleaned = titleLine.replace(/\s*\|\s*LinkedIn\s*$/i, "").trim();
-      const segments = cleaned.split(" - ").map((segment) => segment.trim()).filter(Boolean);
-      const possibleName = segments.find((segment) => looksLikePersonName(segment));
-      if (possibleName) {
-        anchor.fullName = possibleName;
-        const titleSegments = segments.filter((segment) => segment !== possibleName);
-        if (titleSegments.length > 0) anchor.title = titleSegments.join(" - ").trim();
-      }
-    }
-
-    const h1Matches = [...markdown.matchAll(/^#\s+(.+)$/gm)].map((m) => m[1].trim());
-    const firstPlainNameHeading = h1Matches.find((h) => looksLikePersonName(h));
-    if (firstPlainNameHeading) anchor.fullName = firstPlainNameHeading;
-
-    const locationMatch = markdown.match(/^###\s+(.+?)\s+Contact Info\s*$/m);
-    if (locationMatch?.[1]) anchor.location = locationMatch[1].trim();
-
-    const companyMatch = markdown.match(/introduce you to \d+ people at ([^\n]+)/i);
-    if (companyMatch?.[1]) anchor.company = companyMatch[1].trim();
-
-    // Extract profile photo (not banner/background)
-    const allImgMatches = [...markdown.matchAll(/!\[.*?\]\((https:\/\/media\.licdn\.com\/[^\s)]+)\)/g)];
-    const profilePhotoMatch = allImgMatches.find(m => m[1].includes("profile-displayphoto"));
-    if (profilePhotoMatch?.[1]) {
-      anchor.profileImageUrl = profilePhotoMatch[1];
-    } else {
-      const smallImgMatch = allImgMatches.find(m => !m[1].includes("background") && !m[1].includes("banner"));
-      if (smallImgMatch?.[1]) anchor.profileImageUrl = smallImgMatch[1];
-    }
-    if (!anchor.profileImageUrl) {
-      const imgLineMatch = markdown.match(/^Image:\s*(https:\/\/[^\s]+)/m);
-      if (imgLineMatch?.[1] && !imgLineMatch[1].includes("background")) {
-        anchor.profileImageUrl = imgLineMatch[1];
-      }
-    }
-
-    if (!anchor.fullName) anchor.fullName = slugToNameFallback(normalizedUrl);
-    if (!anchor.initials) anchor.initials = toInitials(anchor.fullName);
-
-    // Only use LinkedIn profile image — web search returns wrong-person photos
-  } catch (error) {
-    console.warn("Could not fetch LinkedIn anchor data:", error);
-    anchor.fullName = anchor.fullName ?? slugToNameFallback(normalizedUrl);
-    anchor.initials = toInitials(anchor.fullName);
-  }
-  return anchor;
 };
 
 const normalizeScore = (value: unknown) => {
@@ -209,29 +46,132 @@ const normalizeScore = (value: unknown) => {
   return Math.max(0, Math.min(100, Math.round(normalized)));
 };
 
-const enforceAnchorOnReport = (report: any, anchor: LinkedInAnchor) => {
+const normalizePersonName = (name?: string) =>
+  (name ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const isIdentityAligned = (anchor: ProfileAnchor, reportedName?: string) => {
+  if (!anchor.fullName || !reportedName) return true;
+  const anchorTokens = normalizePersonName(anchor.fullName).split(" ").filter(Boolean);
+  const reportedTokens = normalizePersonName(reportedName).split(" ").filter(Boolean);
+  if (!anchorTokens.length || !reportedTokens.length) return true;
+  const sharedTokens = anchorTokens.filter((token) => reportedTokens.includes(token));
+  const anchorLast = anchorTokens[anchorTokens.length - 1];
+  const reportedLast = reportedTokens[reportedTokens.length - 1];
+  const firstInitialMatch = anchorTokens[0]?.[0] === reportedTokens[0]?.[0];
+  return sharedTokens.length >= 2 || (Boolean(anchorLast) && anchorLast === reportedLast && firstInitialMatch);
+};
+
+const applyIdentityMismatchSafeguards = (report: any, anchor: ProfileAnchor) => {
+  report.biography = report.biography ?? {};
+  for (const key of BIOGRAPHY_KEYS) {
+    report.biography[key] = "No public information available.";
+  }
+  report.confidenceScore = Math.min(normalizeScore(report.confidenceScore), 35);
+  report.executiveSummary = `Identity mismatch warning: external evidence could not be confidently matched to ${anchor.fullName ?? "the target"}. Biography has been intentionally constrained.`;
+  const identitySignals = Array.isArray(report.identitySignals) ? report.identitySignals : [];
+  identitySignals.unshift({ label: "Identity safeguard applied: non-matching subject details were suppressed", verified: false });
+  report.identitySignals = identitySignals;
+  return report;
+};
+
+// Extract profile info from a LinkedIn screenshot using vision AI
+const extractProfileFromScreenshot = async (imageBase64: string, LOVABLE_API_KEY: string): Promise<ProfileAnchor> => {
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        {
+          role: "system",
+          content: `You are a data extraction assistant. Extract the following from this LinkedIn profile screenshot:
+- fullName: the person's full name
+- title: their job title/headline
+- company: their current company
+- location: their location
+- profileSummary: a comprehensive text summary of EVERYTHING visible on the profile (experience, education, skills, about section, posts, etc.)
+
+Return ONLY a JSON object with these fields. If a field is not visible, use null.`,
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Extract all profile information from this LinkedIn screenshot." },
+            { type: "image_url", image_url: { url: `data:image/png;base64,${imageBase64}` } },
+          ],
+        },
+      ],
+      response_format: { type: "json_object" },
+    }),
+  });
+
+  if (!response.ok) {
+    console.error("Vision extraction failed:", response.status);
+    throw new Error("Failed to extract profile from screenshot");
+  }
+
+  const result = await response.json();
+  const content = result.choices?.[0]?.message?.content;
+  if (!content) throw new Error("No extraction result from vision model");
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    // Try to find JSON in the response
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
+    else throw new Error("Could not parse vision extraction result");
+  }
+
+  return {
+    fullName: parsed.fullName || undefined,
+    title: parsed.title || undefined,
+    company: parsed.company || undefined,
+    location: parsed.location || undefined,
+    initials: toInitials(parsed.fullName),
+    profileSnapshot: parsed.profileSummary || undefined,
+    source: "screenshot",
+  };
+};
+
+const enforceAnchorOnReport = (report: any, anchor: ProfileAnchor) => {
   report.target = report.target ?? {};
   if (anchor.fullName) report.target.fullName = anchor.fullName;
   if (anchor.initials) report.target.initials = anchor.initials;
   if (anchor.title) report.target.title = anchor.title;
   if (anchor.company) report.target.company = anchor.company;
   if (anchor.location) report.target.location = anchor.location;
-  if (anchor.profileImageUrl) report.target.profileImageUrl = anchor.profileImageUrl;
-  if (!report.target.title) report.target.title = "LinkedIn Profile";
+  if (!report.target.title) report.target.title = "Unknown";
   if (!report.target.company) report.target.company = "Unspecified";
   if (!report.target.location) report.target.location = "Unknown";
 
   report.confidenceScore = normalizeScore(report.confidenceScore);
   report.riskScore = normalizeScore(report.riskScore);
-
   report.biography = report.biography ?? {};
 
   const identitySignals = Array.isArray(report.identitySignals) ? report.identitySignals : [];
-  identitySignals.unshift({ label: `LinkedIn URL anchored: ${anchor.normalizedUrl}`, verified: true });
+  identitySignals.unshift({
+    label: anchor.source === "screenshot"
+      ? "LinkedIn profile extracted from uploaded screenshot"
+      : "Context-only investigation — no LinkedIn profile",
+    verified: anchor.source === "screenshot",
+  });
   report.identitySignals = identitySignals;
 
   const sources = Array.isArray(report.sourcesConsulted) ? report.sourcesConsulted : [];
-  sources.unshift({ name: "LinkedIn Public Profile", reliability: "HIGH", status: `Anchored to ${anchor.normalizedUrl}` });
+  sources.unshift({
+    name: anchor.source === "screenshot" ? "LinkedIn Profile Screenshot" : "Web Research (Context-Based)",
+    reliability: anchor.source === "screenshot" ? "HIGH" : "MEDIUM",
+    status: anchor.source === "screenshot" ? "Extracted via vision AI" : "No LinkedIn profile available",
+  });
   report.sourcesConsulted = sources;
 
   const existingFindings = Array.isArray(report.findings) ? report.findings : [];
@@ -244,46 +184,44 @@ const enforceAnchorOnReport = (report: any, anchor: LinkedInAnchor) => {
   return report;
 };
 
-const buildSystemPrompt = (anchor: LinkedInAnchor, strictIdentity = false) => `You are I.C.E. Panda, an expert due diligence and intelligence research AI.
+const buildSystemPrompt = (anchor: ProfileAnchor, strictIdentity = false) => `You are I.C.E. Panda, an expert due diligence and intelligence research AI.
 
 CRITICAL IDENTITY RULES — FOLLOW EXACTLY:
-1) The target is ONLY the person at this LinkedIn URL: ${anchor.normalizedUrl}
-2) Their verified identity from LinkedIn:
+1) The target is ONLY the person described below.
+2) Their identity from the LinkedIn profile:
    - fullName: ${anchor.fullName ?? "unknown"}
    - title: ${anchor.title ?? "unknown"}
    - company: ${anchor.company ?? "unknown"}
    - location: ${anchor.location ?? "unknown"}
 3) There may be MANY people with this same name. You MUST write about THIS specific person only.
-4) Do NOT confuse them with any other person who shares the same name — no matter how famous that other person is.
-5) If you cannot confirm a fact belongs to THIS specific person (matching their title, company, location, or LinkedIn profile), write "No public information available." for that section.
-6) The LinkedIn snapshot below is your PRIMARY and most trusted source. Base the biography primarily on what is stated or implied in the snapshot.
-${strictIdentity ? "7) STRICT MODE: A prior attempt returned wrong-person data. If ANY doubt exists about whether information matches THIS person, write 'No public information available.' Do NOT guess." : ""}
+4) Do NOT confuse them with any other person who shares the same name.
+5) If you cannot confirm a fact belongs to THIS specific person, write "No public information available."
+6) The profile snapshot below is your PRIMARY and most trusted source.
+${strictIdentity ? "7) STRICT MODE: A prior attempt returned wrong-person data. If ANY doubt exists, write 'No public information available.'" : ""}
 
-LINKEDIN PROFILE SNAPSHOT (YOUR PRIMARY SOURCE — trust this above all else):
+LINKEDIN PROFILE SNAPSHOT (YOUR PRIMARY SOURCE):
 ${anchor.profileSnapshot || "No profile snapshot available."}
 
 BIOGRAPHY INSTRUCTIONS:
-Write the biography ONLY about the person described in the LinkedIn snapshot above. For each section:
-- Base your content primarily on what can be inferred from the LinkedIn profile snapshot
-- Only supplement with external information if you are highly confident it refers to THIS exact person (same name + same company + same role)
-- If the LinkedIn snapshot doesn't mention information for a section, write "No public information available."
-- Do NOT fill in sections with information about a different person who has the same name
+Write the biography ONLY about the person described above. For each section:
+- Base your content primarily on what can be inferred from the profile snapshot
+- Only supplement with external information if you are highly confident it refers to THIS exact person
+- If the snapshot doesn't mention information for a section, write "No public information available."
 
 Sections:
 - earlyLife: Where they grew up, family background if public
-- education: Schools, universities, degrees — ONLY if mentioned or implied in the LinkedIn profile
-- career: Career trajectory as described in LinkedIn experience section
-- notableAchievements: Awards, publications — ONLY if clearly attributable to THIS person
-- personalLife: Public interests, philanthropy — ONLY if evident from their LinkedIn profile
-- publicPresence: Media, speaking — ONLY if evident from their LinkedIn profile
+- education: Schools, universities, degrees
+- career: Career trajectory and key roles
+- notableAchievements: Awards, publications, major accomplishments
+- personalLife: Public interests, philanthropy
+- publicPresence: Media, speaking, social media
 
 DUE DILIGENCE INSTRUCTIONS:
-Produce risk findings across all categories. Be factual. If no adverse findings exist for THIS specific person, return empty items arrays. Do NOT attribute findings from a different same-name person.
+Produce risk findings across all categories. Be factual. If no adverse findings exist, return empty items arrays.
 
 Return ONLY structured report JSON via tool call.`;
 
-const buildUserPrompt = (normalizedLinkedInUrl: string, context: string, scopeList: string) => `Investigate this person and create a comprehensive life briefing report:
-LinkedIn URL: ${normalizedLinkedInUrl}
+const buildUserPrompt = (context: string, scopeList: string) => `Investigate this person and create a comprehensive life briefing report.
 ${context ? `Additional context: ${context}` : ""}
 
 Research scope: ${scopeList || "all categories"}
@@ -333,14 +271,13 @@ const requestStructuredReport = async ({
                 },
                 biography: {
                   type: "object",
-                  description: "Comprehensive life briefing sections",
                   properties: {
-                    earlyLife: { type: "string", description: "Early life, upbringing, family background" },
-                    education: { type: "string", description: "Educational history, degrees, institutions" },
-                    career: { type: "string", description: "Full career trajectory and key roles" },
-                    notableAchievements: { type: "string", description: "Awards, publications, major accomplishments" },
-                    personalLife: { type: "string", description: "Public interests, philanthropy, community" },
-                    publicPresence: { type: "string", description: "Media, social media, public speaking" },
+                    earlyLife: { type: "string" },
+                    education: { type: "string" },
+                    career: { type: "string" },
+                    notableAchievements: { type: "string" },
+                    personalLife: { type: "string" },
+                    publicPresence: { type: "string" },
                   },
                 },
                 riskLevel: { type: "string", enum: ["critical", "high", "moderate", "low", "clear"] },
@@ -408,12 +345,8 @@ const requestStructuredReport = async ({
   });
 
   if (!response.ok) {
-    if (response.status === 429) {
-      throw new Error("RATE_LIMITED");
-    }
-    if (response.status === 402) {
-      throw new Error("AI_CREDITS_EXHAUSTED");
-    }
+    if (response.status === 429) throw new Error("RATE_LIMITED");
+    if (response.status === 402) throw new Error("AI_CREDITS_EXHAUSTED");
     const errText = await response.text();
     console.error("AI gateway error:", response.status, errText);
     throw new Error(`AI gateway error: ${response.status}`);
@@ -422,113 +355,63 @@ const requestStructuredReport = async ({
   const aiResponse = await response.json();
   const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
   if (!toolCall) throw new Error("No structured response from AI");
-
   return JSON.parse(toolCall.function.arguments);
 };
-
-const buildContextOnlySystemPrompt = (context: string) => `You are I.C.E. Panda, an expert due diligence and intelligence research AI.
-
-You are conducting a web-based investigation using ONLY the context provided below. There is no LinkedIn profile available.
-
-TARGET CONTEXT:
-${context}
-
-INSTRUCTIONS:
-1) Identify the most likely person matching the context description.
-2) Research them using publicly available information.
-3) Write a comprehensive biography and due diligence report.
-4) If you cannot confidently identify the person, state that in the executive summary and lower the confidence score.
-5) For biography sections where no information is available, write "No public information available."
-
-Return ONLY structured report JSON via tool call.`;
-
-const buildContextOnlyUserPrompt = (context: string, scopeList: string) => `Investigate this person based on the following description and create a comprehensive life briefing report:
-
-Description: ${context}
-
-Research scope: ${scopeList || "all categories"}
-
-Produce a comprehensive due diligence report with a detailed biographical briefing and risk findings based on publicly available information.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { linkedinUrl, context, scopes } = await req.json();
+    const { imageBase64, context, scopes } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     const scopeList = Object.entries(scopes || {}).filter(([_, v]) => v).map(([k]) => k).join(", ");
-    const hasLinkedIn = linkedinUrl && linkedinUrl.includes("linkedin.com/in/");
+    const hasImage = !!imageBase64;
 
-    let anchoredReport;
+    let anchor: ProfileAnchor;
 
-    if (hasLinkedIn) {
-      // LinkedIn-anchored research
-      const normalizedLinkedInUrl = normalizeLinkedInUrl(linkedinUrl);
-      const anchor = await fetchLinkedInAnchor(normalizedLinkedInUrl);
-      const userPrompt = buildUserPrompt(normalizedLinkedInUrl, context, scopeList);
+    if (hasImage) {
+      // Extract profile from screenshot using vision AI
+      anchor = await extractProfileFromScreenshot(imageBase64, LOVABLE_API_KEY);
+    } else {
+      // Context-only
+      if (!context || context.trim().length < 5) {
+        throw new Error("Please provide either a LinkedIn screenshot or a detailed description of the person to investigate.");
+      }
+      anchor = {
+        fullName: undefined,
+        source: "context",
+      };
+    }
 
-      let report = await requestStructuredReport({
+    const systemPrompt = buildSystemPrompt(anchor, false);
+    const userPrompt = buildUserPrompt(context || "", scopeList);
+
+    let report = await requestStructuredReport({ LOVABLE_API_KEY, systemPrompt, userPrompt });
+
+    let identityAligned = isIdentityAligned(anchor, report?.target?.fullName);
+    if (hasImage && !identityAligned) {
+      console.warn("Identity mismatch detected, retrying with stricter prompt");
+      report = await requestStructuredReport({
         LOVABLE_API_KEY,
-        systemPrompt: buildSystemPrompt(anchor, false),
+        systemPrompt: buildSystemPrompt(anchor, true),
         userPrompt,
       });
+      identityAligned = isIdentityAligned(anchor, report?.target?.fullName);
+    }
 
-      let identityAligned = isIdentityAligned(anchor, report?.target?.fullName);
-      if (!identityAligned) {
-        console.warn("Identity mismatch detected, retrying with stricter prompt", {
-          anchorName: anchor.fullName,
-          modelName: report?.target?.fullName,
-        });
-
-        report = await requestStructuredReport({
-          LOVABLE_API_KEY,
-          systemPrompt: buildSystemPrompt(anchor, true),
-          userPrompt,
-        });
-        identityAligned = isIdentityAligned(anchor, report?.target?.fullName);
-      }
-
-      anchoredReport = enforceAnchorOnReport(report, anchor);
-      if (!identityAligned) {
-        anchoredReport = applyIdentityMismatchSafeguards(anchoredReport, anchor);
-      }
-    } else {
-      // Context-only web research
-      if (!context || context.trim().length < 5) {
-        throw new Error("Please provide either a LinkedIn URL or a detailed description of the person to investigate.");
-      }
-
-      const report = await requestStructuredReport({
-        LOVABLE_API_KEY,
-        systemPrompt: buildContextOnlySystemPrompt(context),
-        userPrompt: buildContextOnlyUserPrompt(context, scopeList),
-      });
-
-      // Normalize scores and ensure required categories
-      report.confidenceScore = normalizeScore(report.confidenceScore);
-      report.riskScore = normalizeScore(report.riskScore);
+    // For context-only, set initials from the AI response
+    if (!hasImage) {
       report.target = report.target ?? {};
       report.target.initials = toInitials(report.target.fullName);
-      report.biography = report.biography ?? {};
+    }
 
-      const existingFindings = Array.isArray(report.findings) ? report.findings : [];
-      const byCategory = new Map(existingFindings.map((f: any) => [f.category, f]));
-      report.findings = REQUIRED_CATEGORIES.map((category) => {
-        const current = byCategory.get(category) as { items?: unknown[] } | undefined;
-        return { category, items: Array.isArray(current?.items) ? current.items : [] };
+    const anchoredReport = enforceAnchorOnReport(report, anchor);
+    if (hasImage && !identityAligned) {
+      return new Response(JSON.stringify(applyIdentityMismatchSafeguards(anchoredReport, anchor)), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
-
-      const sources = Array.isArray(report.sourcesConsulted) ? report.sourcesConsulted : [];
-      sources.unshift({ name: "Web Research (Context-Based)", reliability: "MEDIUM", status: "No LinkedIn anchor available" });
-      report.sourcesConsulted = sources;
-
-      const signals = Array.isArray(report.identitySignals) ? report.identitySignals : [];
-      signals.unshift({ label: "Context-only investigation — no LinkedIn profile anchoring", verified: false });
-      report.identitySignals = signals;
-
-      anchoredReport = report;
     }
 
     return new Response(JSON.stringify(anchoredReport), {
