@@ -1,52 +1,58 @@
-import pandaAvatar from "@/assets/ice-panda-avatar.png";
+import pandaBody from "@/assets/ice-panda-body.png";
+import pandaLeftArm from "@/assets/panda-left-arm-only.png";
+import pandaRightArm from "@/assets/panda-right-arm-only.png";
 
 export const IcePandaLogo = ({ size = "default" }: { size?: "default" | "large" }) => {
   const isLarge = size === "large";
   const containerSize = isLarge ? "w-40 h-40" : "w-24 h-24";
-  const px = isLarge ? 160 : 96;
-  const armW = isLarge ? 26 : 15;
-  const armH = isLarge ? 44 : 26;
 
-  const armStyle = (side: "left" | "right"): React.CSSProperties => ({
-    width: armW,
-    height: armH,
-    top: "40%",
-    [side]: "3%",
-    transformOrigin: "50% 0%",
-    animation: `arm-wave-${side} 2s cubic-bezier(0.45,0.05,0.55,0.95) infinite`,
-  });
+  const leftArmStyle = {
+    width: isLarge ? 74 : 44,
+    left: isLarge ? -12 : -7,
+    top: isLarge ? 62 : 37,
+    transformOrigin: "88% 68%",
+    animation: "arm-wave-left 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite",
+    willChange: "transform",
+  } as const;
 
-  const innerImg = (side: "left" | "right"): React.CSSProperties => ({
-    width: px,
-    height: px,
-    top: -px * 0.4,
-    [side]: -px * 0.03,
-  });
+  const rightArmStyle = {
+    width: isLarge ? 74 : 44,
+    right: isLarge ? -12 : -7,
+    top: isLarge ? 62 : 37,
+    transformOrigin: "12% 68%",
+    animation: "arm-wave-right 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite",
+    willChange: "transform",
+  } as const;
 
   return (
     <div className="flex flex-col items-center gap-2 text-center">
       <div className={`${containerSize} relative`}>
         <img
-          src={pandaAvatar}
+          src={pandaBody}
           alt="I.C.E. Panda"
-          className="w-full h-full rounded-lg object-cover"
+          className="relative z-20 w-full h-full rounded-lg object-contain"
+          draggable={false}
         />
-        {(["left", "right"] as const).map((side) => (
-          <div
-            key={side}
-            className="absolute overflow-hidden pointer-events-none"
-            style={armStyle(side)}
-          >
-            <img
-              src={pandaAvatar}
-              alt=""
-              aria-hidden
-              className="absolute object-cover rounded-lg"
-              style={innerImg(side)}
-            />
-          </div>
-        ))}
+
+        <img
+          src={pandaLeftArm}
+          alt=""
+          aria-hidden
+          draggable={false}
+          className="absolute z-10 pointer-events-none select-none"
+          style={leftArmStyle}
+        />
+
+        <img
+          src={pandaRightArm}
+          alt=""
+          aria-hidden
+          draggable={false}
+          className="absolute z-10 pointer-events-none select-none"
+          style={rightArmStyle}
+        />
       </div>
+
       <div className="text-center">
         <h1 className={`${isLarge ? "text-2xl" : "text-lg"} font-bold tracking-tight text-foreground`}>
           I.C.E. Panda
