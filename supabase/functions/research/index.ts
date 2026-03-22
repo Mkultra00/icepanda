@@ -248,6 +248,87 @@ const searchWebMentions = async (fullName: string, config: CategorySearchConfig)
   }
 };
 
+// Direct Epstein document search — fetches known public sources and scans for name
+const searchEpsteinDocumentsDirect = async (fullName: string): Promise<WebMention[]> => {
+  const nameTokens = tokenizeIdentity(fullName);
+  if (!nameTokens.length) return [];
+
+  const mentions: WebMention[] = [];
+  const seenUrls = new Set<string>();
+  const linkRegex = /<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+
+  // Specific Epstein document queries — broader and more varied
+  const specificQueries = [
+    `site:epsteinsblackbook.com ${nameTokens.join(" ")}`,
+    `"epstein" "black book" "${nameTokens[nameTokens.length - 1]}"`,
+    `"epstein" "flight log" "${nameTokens[nameTokens.length - 1]}"`,
+    `"epstein" "lolita express" "${nameTokens[nameTokens.length - 1]}"`,
+    `"jeffrey epstein" "${nameTokens.join(" ")}"`,
+    `ghislaine maxwell "${nameTokens[nameTokens.length - 1]}" documents`,
+    `epstein associates list "${nameTokens[nameTokens.length - 1]}"`,
+    `epstein court documents "${nameTokens.join(" ")}"`,
+  ];
+
+  for (const query of specificQueries) {
+    if (mentions.length >= 5) break;
+    try {
+      const response = await fetch(`https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
+      });
+      if (!response.ok) continue;
+      const html = await response.text();
+      let match: RegExpExecArray | null;
+
+      while ((match = linkRegex.exec(html)) !== null) {
+        const href = unwrapDuckDuckGoRedirect(match[1]);
+        const title = decodeHtmlEntities(stripHtml(match[2] ?? ""));
+        if (!href || !title || seenUrls.has(href)) continue;
+
+        const nearby = html.slice(match.index, match.index + 1500);
+        const snippetMatch = nearby.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>|<div[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/div>/i);
+        const snippet = decodeHtmlEntities(stripHtml(snippetMatch?.[1] ?? snippetMatch?.[2] ?? ""));
+        const combined = normalizePersonName(`${title} ${snippet}`);
+
+        const hasNameToken = nameTokens.some((t) => t.length >= 3 && combined.includes(t));
+        if (!hasNameToken) continue;
+
+        mentions.push({ title, snippet, url: href, reliability: scoreMentionReliability(href) });
+        seenUrls.add(href);
+        if (mentions.length >= 5) break;
+      }
+    } catch (err) {
+      console.warn("Epstein direct search query failed:", err);
+    }
+  }
+
+  // Direct fetch from epsteinsblackbook.com
+  try {
+    const lastName = nameTokens[nameTokens.length - 1];
+    const bbResponse = await fetch(`https://epsteinsblackbook.com/names/${encodeURIComponent(lastName)}`, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+    });
+    if (bbResponse.ok) {
+      const bbHtml = await bbResponse.text();
+      const normalized = normalizePersonName(bbHtml);
+      const nameMatches = nameTokens.filter((t) => t.length >= 3 && normalized.includes(t));
+      if (nameMatches.length > 0 && !seenUrls.has(bbResponse.url)) {
+        const titleMatch = bbHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+        const pageTitle = titleMatch ? stripHtml(titleMatch[1]) : "Epstein Black Book Entry";
+        mentions.push({
+          title: `Black Book: ${pageTitle}`,
+          snippet: `Name match found on epsteinsblackbook.com for tokens: ${nameMatches.join(", ")}. Direct document source.`,
+          url: bbResponse.url,
+          reliability: "HIGH",
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("Epstein black book direct fetch failed:", err);
+  }
+
+  return mentions;
+};
+
 const addWebFallbackFindings = async (report: any, fullName?: string) => {
   if (!fullName) return report;
 
@@ -300,7 +381,49 @@ const addWebFallbackFindings = async (report: any, fullName?: string) => {
     }
   }
 
-  report.findings = findings;
+  // DEDICATED Epstein document deep search — runs in addition to the generic web search above
+  {
+    const epsteinCategory = findings.find((f: any) => f?.category === "Epstein Files");
+    const epsteinItems = Array.isArray(epsteinCategory?.items) ? epsteinCategory.items : [];
+    const epsteinUrls = new Set(epsteinItems.map((item: any) => item.source).filter(Boolean));
+
+    const directEpsteinMentions = await searchEpsteinDocumentsDirect(fullName);
+    const newDirectMentions = directEpsteinMentions.filter((m) => !epsteinUrls.has(m.url));
+
+    if (newDirectMentions.length > 0) {
+      anyMentionsFound = true;
+      if (!categoriesWithMentions.includes("Epstein Files")) categoriesWithMentions.push("Epstein Files");
+
+      const mappedDirect = newDirectMentions.slice(0, 5).map((mention) => ({
+        title: `Document Search: ${mention.title}`,
+        source: mention.url,
+        reliability: mention.reliability,
+        confidence: mention.reliability === "HIGH" ? 75 : mention.reliability === "MEDIUM" ? 60 : 45,
+        severity: "moderate" as const,
+        summary: mention.snippet
+          ? `Direct Epstein document search found a match for ${fullName}. ${mention.snippet}. ⚠️ Note: Web search may return results for different people with a similar name — manual verification required.`
+          : `Direct Epstein document search found a potential reference to ${fullName}. ⚠️ Note: Web search may return results for different people with a similar name — manual verification required.`,
+      }));
+
+      if (epsteinCategory) {
+        epsteinCategory.items = [...epsteinItems, ...mappedDirect];
+      } else {
+        findings.push({ category: "Epstein Files", items: mappedDirect });
+      }
+
+      sources.push({
+        name: "Epstein Document Direct Search",
+        reliability: "MEDIUM",
+        status: `${newDirectMentions.length} potential match(es) found in Epstein documents for ${fullName}`,
+      });
+    } else {
+      sources.push({
+        name: "Epstein Document Direct Search",
+        reliability: "LOW",
+        status: `No direct Epstein document matches found for ${fullName}`,
+      });
+    }
+  }
   report.sourcesConsulted = sources;
 
   if (anyMentionsFound) {
