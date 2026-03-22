@@ -17,6 +17,7 @@ import { toast } from "sonner";
 const Dashboard = () => {
   const [investigationModalOpen, setInvestigationModalOpen] = useState(false);
   const [githubModalOpen, setGithubModalOpen] = useState(false);
+  const [photoModalOpen, setPhotoModalOpen] = useState(false);
   const navigate = useNavigate();
   const { runResearch, loading } = useResearch();
   const { analyzeRepo, loading: githubLoading } = useGitHubIntegrity();
