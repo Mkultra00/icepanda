@@ -315,6 +315,17 @@ const requestStructuredReport = async ({
                     publicPresence: { type: "string" },
                   },
                 },
+                psychProfile: {
+                  type: "object",
+                  properties: {
+                    personalityTraits: { type: "string" },
+                    motivations: { type: "string" },
+                    communicationStyle: { type: "string" },
+                    leadershipStyle: { type: "string" },
+                    riskTolerance: { type: "string" },
+                    potentialVulnerabilities: { type: "string" },
+                  },
+                },
                 riskLevel: { type: "string", enum: ["critical", "high", "moderate", "low", "clear"] },
                 confidenceScore: { type: "number" },
                 riskScore: { type: "number" },
