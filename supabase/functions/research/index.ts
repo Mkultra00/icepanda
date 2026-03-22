@@ -381,7 +381,7 @@ const requestStructuredReport = async ({
                   },
                 },
               },
-              required: ["target", "biography", "riskLevel", "confidenceScore", "riskScore", "executiveSummary", "findings", "identitySignals", "sourcesConsulted"],
+              required: ["target", "biography", "psychProfile", "riskLevel", "confidenceScore", "riskScore", "executiveSummary", "findings", "identitySignals", "sourcesConsulted"],
             },
           },
         },

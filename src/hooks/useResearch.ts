@@ -58,6 +58,7 @@ export interface SourceConsulted {
 export interface ResearchReport {
   target: ResearchTarget;
   biography: BiographySection;
+  psychProfile?: PsychProfile;
   riskLevel: "critical" | "high" | "moderate" | "low" | "clear";
   confidenceScore: number;
   riskScore: number;

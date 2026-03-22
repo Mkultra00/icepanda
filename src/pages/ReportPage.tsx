@@ -242,6 +242,34 @@ const ReportPage = () => {
                   })}
                 </div>
               )}
+
+              {/* Psychological Profile */}
+              {report.psychProfile && (
+                <div className="space-y-3">
+                  <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Psychological Profile</h3>
+                  {psychSections.map(({ key, label, icon: Icon, color }, i) => {
+                    const content = report.psychProfile?.[key as keyof typeof report.psychProfile];
+                    if (!content || content === "Insufficient public data for assessment.") return null;
+                    return (
+                      <motion.div
+                        key={key}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.15 + i * 0.08, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                        className="glass rounded-xl p-5"
+                      >
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-7 h-7 rounded-md flex items-center justify-center" style={{ backgroundColor: `${color}15`, border: `1px solid ${color}30` }}>
+                            <Icon className="w-3.5 h-3.5" style={{ color }} />
+                          </div>
+                          <h4 className="text-sm font-semibold text-foreground">{label}</h4>
+                        </div>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{content}</p>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
             </motion.div>
           )}
 
