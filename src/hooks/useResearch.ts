@@ -7,6 +7,7 @@ export interface ResearchTarget {
   company: string;
   initials: string;
   location?: string;
+  profileImageUrl?: string;
 }
 
 export interface BiographySection {
