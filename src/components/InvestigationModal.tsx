@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Search, ChevronRight, Loader2 } from "lucide-react";
+import { X, Search, ChevronRight, Loader2, Globe } from "lucide-react";
 
 interface InvestigationModalProps {
   open: boolean;
@@ -25,7 +25,9 @@ export const InvestigationModal = ({ open, onClose, onStart, loading }: Investig
     Object.fromEntries(scopeOptions.map(s => [s.key, s.defaultOn]))
   );
 
-  const isValid = url.includes("linkedin.com/in/");
+  const hasLinkedIn = url.includes("linkedin.com/in/");
+  const hasContext = context.trim().length >= 5;
+  const isValid = hasLinkedIn || hasContext;
 
   const toggleScope = (key: string) => {
     setScopes(prev => ({ ...prev, [key]: !prev[key] }));
@@ -62,14 +64,14 @@ export const InvestigationModal = ({ open, onClose, onStart, loading }: Investig
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-foreground">New Investigation</h2>
-                <p className="text-xs text-muted-foreground">Enter a LinkedIn profile to begin due diligence</p>
+                <p className="text-xs text-muted-foreground">Enter a LinkedIn URL or describe the person to investigate</p>
               </div>
             </div>
 
             {/* URL Input */}
             <div className="mb-4">
               <label className="block text-xs font-mono text-muted-foreground uppercase tracking-wider mb-2">
-                LinkedIn Profile URL
+                LinkedIn Profile URL <span className="text-muted-foreground/50">(optional)</span>
               </label>
               <input
                 type="url"
@@ -82,19 +84,30 @@ export const InvestigationModal = ({ open, onClose, onStart, loading }: Investig
             </div>
 
             {/* Context */}
-            <div className="mb-5">
+            <div className="mb-1">
               <label className="block text-xs font-mono text-muted-foreground uppercase tracking-wider mb-2">
-                Additional Context <span className="text-muted-foreground/50">(optional)</span>
+                Context {!hasLinkedIn && <span className="text-primary">(required without LinkedIn)</span>}
               </label>
               <textarea
                 value={context}
                 onChange={(e) => setContext(e.target.value)}
-                placeholder="Known to have worked in finance in NYC 2015–2020..."
+                placeholder="e.g. John Smith, CFO at Acme Corp, based in New York..."
                 rows={2}
                 disabled={loading}
                 className="w-full bg-secondary/50 border border-border rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all resize-none disabled:opacity-50"
               />
             </div>
+
+            {/* Mode indicator */}
+            {!hasLinkedIn && hasContext && (
+              <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-primary/5 border border-primary/15">
+                <Globe className="w-3.5 h-3.5 text-primary" />
+                <span className="text-[11px] text-primary font-mono">Web-only research mode — no LinkedIn anchor</span>
+              </div>
+            )}
+            {!hasLinkedIn && !hasContext && (
+              <div className="mb-4" />
+            )}
 
             {/* Scope Checkboxes */}
             <div className="mb-6">
