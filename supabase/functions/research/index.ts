@@ -2,7 +2,146 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+type LinkedInAnchor = {
+  normalizedUrl: string;
+  fullName?: string;
+  title?: string;
+  company?: string;
+  location?: string;
+  initials?: string;
+};
+
+const REQUIRED_CATEGORIES = [
+  "Criminal",
+  "Litigation",
+  "Fraud & Financial",
+  "Sanctions",
+  "Sex Offender",
+  "Epstein Files",
+] as const;
+
+const normalizeLinkedInUrl = (rawUrl: string) => {
+  const trimmed = rawUrl.trim();
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  const url = new URL(withProtocol);
+
+  if (!url.hostname.toLowerCase().includes("linkedin.com") || !url.pathname.startsWith("/in/")) {
+    throw new Error("Please provide a valid LinkedIn profile URL (linkedin.com/in/...) ");
+  }
+
+  url.protocol = "https:";
+  url.search = "";
+  url.hash = "";
+  return url.toString().replace(/\/$/, "");
+};
+
+const toInitials = (name?: string) => {
+  if (!name) return "NA";
+  const parts = name.split(/\s+/).filter(Boolean);
+  return parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("") || "NA";
+};
+
+const slugToNameFallback = (normalizedUrl: string) => {
+  const slug = normalizedUrl.split("/in/")[1]?.split("/")[0] ?? "";
+  if (!slug) return undefined;
+
+  return decodeURIComponent(slug)
+    .replace(/[._-]+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+};
+
+const fetchLinkedInAnchor = async (normalizedUrl: string): Promise<LinkedInAnchor> => {
+  const anchor: LinkedInAnchor = { normalizedUrl };
+
+  try {
+    const noProtocol = normalizedUrl.replace(/^https?:\/\//i, "");
+    const jinaUrl = `https://r.jina.ai/http://${noProtocol}`;
+    const response = await fetch(jinaUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+    const markdown = await response.text();
+
+    const titleLineMatch = markdown.match(/^Title:\s*(.+)$/m);
+    const titleLine = titleLineMatch?.[1]?.trim();
+
+    // Title usually looks like: "Frank Yu - BlackChamber AI | LinkedIn"
+    if (titleLine) {
+      const cleaned = titleLine.replace(/\s*\|\s*LinkedIn\s*$/i, "").trim();
+      const [possibleName, ...rest] = cleaned.split(" - ");
+      if (possibleName?.trim()) anchor.fullName = possibleName.trim();
+      if (rest.length > 0) anchor.title = rest.join(" - ").trim();
+    }
+
+    const h1Matches = [...markdown.matchAll(/^#\s+(.+)$/gm)].map((m) => m[1].trim());
+    const firstPlainNameHeading = h1Matches.find((h) => h && !h.includes("| LinkedIn") && h.split(" ").length <= 5);
+    if (!anchor.fullName && firstPlainNameHeading) {
+      anchor.fullName = firstPlainNameHeading;
+    }
+
+    const locationMatch = markdown.match(/^###\s+(.+?)\s+Contact Info\s*$/m);
+    if (locationMatch?.[1]) {
+      anchor.location = locationMatch[1].trim();
+    }
+
+    const companyMatch = markdown.match(/introduce you to \d+ people at ([^\n]+)/i);
+    if (companyMatch?.[1]) {
+      anchor.company = companyMatch[1].trim();
+    }
+
+    if (!anchor.fullName) {
+      anchor.fullName = slugToNameFallback(normalizedUrl);
+    }
+
+    if (!anchor.initials) {
+      anchor.initials = toInitials(anchor.fullName);
+    }
+  } catch (error) {
+    console.warn("Could not fetch LinkedIn anchor data:", error);
+    anchor.fullName = anchor.fullName ?? slugToNameFallback(normalizedUrl);
+    anchor.initials = toInitials(anchor.fullName);
+  }
+
+  return anchor;
+};
+
+const enforceAnchorOnReport = (report: any, anchor: LinkedInAnchor) => {
+  report.target = report.target ?? {};
+
+  if (anchor.fullName) report.target.fullName = anchor.fullName;
+  if (anchor.initials) report.target.initials = anchor.initials;
+  if (anchor.title) report.target.title = anchor.title;
+  if (anchor.company) report.target.company = anchor.company;
+  if (anchor.location) report.target.location = anchor.location;
+
+  if (!report.target.title) report.target.title = "LinkedIn Profile";
+  if (!report.target.company) report.target.company = "Unspecified";
+  if (!report.target.location) report.target.location = "Unknown";
+
+  const identitySignals = Array.isArray(report.identitySignals) ? report.identitySignals : [];
+  identitySignals.unshift({ label: `LinkedIn URL anchored: ${anchor.normalizedUrl}`, verified: true });
+  report.identitySignals = identitySignals;
+
+  const sources = Array.isArray(report.sourcesConsulted) ? report.sourcesConsulted : [];
+  sources.unshift({
+    name: "LinkedIn Public Profile",
+    reliability: "HIGH",
+    status: `Anchored to ${anchor.normalizedUrl}`,
+  });
+  report.sourcesConsulted = sources;
+
+  const existingFindings = Array.isArray(report.findings) ? report.findings : [];
+  const byCategory = new Map(existingFindings.map((f: any) => [f.category, f]));
+  report.findings = REQUIRED_CATEGORIES.map((category) => {
+    const current = byCategory.get(category);
+    return {
+      category,
+      items: Array.isArray(current?.items) ? current.items : [],
+    };
+  });
+
+  return report;
 };
 
 serve(async (req) => {
@@ -13,60 +152,35 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
+    const normalizedLinkedInUrl = normalizeLinkedInUrl(linkedinUrl);
+    const anchor = await fetchLinkedInAnchor(normalizedLinkedInUrl);
+
     const scopeList = Object.entries(scopes || {})
       .filter(([_, v]) => v)
       .map(([k]) => k)
       .join(", ");
 
-    const systemPrompt = `You are I.C.E Panda, an expert due diligence research AI. You conduct deep background investigations on individuals using publicly available information.
+    const systemPrompt = `You are I.C.E Panda, an expert due diligence research AI.
 
-Your task: Given a LinkedIn profile URL and optional context, produce a comprehensive due diligence report. Research the person thoroughly and return structured findings.
+CRITICAL IDENTITY RULES:
+1) The target identity is anchored to this exact LinkedIn URL: ${anchor.normalizedUrl}
+2) Prefer these anchor fields over web ambiguity:
+   - fullName: ${anchor.fullName ?? "unknown"}
+   - title: ${anchor.title ?? "unknown"}
+   - company: ${anchor.company ?? "unknown"}
+   - location: ${anchor.location ?? "unknown"}
+3) Never switch to a different same-name person.
+4) If evidence conflicts, keep the anchored identity and lower confidence.
 
-You MUST return valid JSON matching this exact schema:
-{
-  "target": {
-    "fullName": "string",
-    "title": "string",
-    "company": "string",
-    "initials": "string",
-    "location": "string"
-  },
-  "riskLevel": "critical" | "high" | "moderate" | "low" | "clear",
-  "confidenceScore": number (0-100),
-  "riskScore": number (0-100),
-  "executiveSummary": "string (2-3 paragraphs)",
-  "findings": [
-    {
-      "category": "Criminal" | "Litigation" | "Fraud & Financial" | "Sanctions" | "Sex Offender" | "Epstein Files",
-      "items": [
-        {
-          "title": "string",
-          "source": "string",
-          "reliability": "HIGH" | "MEDIUM" | "LOW",
-          "confidence": number (0-100),
-          "severity": "critical" | "high" | "moderate" | "low" | "info",
-          "jurisdiction": "string",
-          "date": "YYYY-MM-DD",
-          "summary": "string (2-3 sentences)"
-        }
-      ]
-    }
-  ],
-  "identitySignals": [
-    { "label": "string", "verified": boolean }
-  ],
-  "sourcesConsulted": [
-    { "name": "string", "reliability": "HIGH" | "MEDIUM" | "LOW", "status": "string" }
-  ]
-}
-
-Be thorough, realistic, and cite plausible public sources. Research scope: ${scopeList || "all categories"}.`;
+Return ONLY structured report JSON via tool call.`;
 
     const userPrompt = `Investigate this person:
-LinkedIn URL: ${linkedinUrl}
+LinkedIn URL: ${normalizedLinkedInUrl}
 ${context ? `Additional context: ${context}` : ""}
 
-Conduct a comprehensive due diligence investigation. Search for criminal records, litigation history, fraud indicators, sanctions matches, and any other relevant adverse findings. Return the structured JSON report.`;
+Research scope: ${scopeList || "all categories"}
+
+Produce a comprehensive due diligence report with realistic findings and sources.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -184,14 +298,15 @@ Conduct a comprehensive due diligence investigation. Search for criminal records
 
     const aiResponse = await response.json();
     const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
-    
+
     if (!toolCall) {
       throw new Error("No structured response from AI");
     }
 
     const report = JSON.parse(toolCall.function.arguments);
+    const anchoredReport = enforceAnchorOnReport(report, anchor);
 
-    return new Response(JSON.stringify(report), {
+    return new Response(JSON.stringify(anchoredReport), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
