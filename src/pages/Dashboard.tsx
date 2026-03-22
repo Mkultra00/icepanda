@@ -16,10 +16,9 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { runResearch, loading } = useResearch();
 
-  const handleStartInvestigation = async (url: string, context: string, scopes: Record<string, boolean>) => {
+  const handleStartInvestigation = async (imageBase64: string | null, context: string, scopes: Record<string, boolean>) => {
     try {
-      const report = await runResearch(url, context, scopes);
-      // Store report in sessionStorage for the report page
+      const report = await runResearch(imageBase64, context, scopes);
       sessionStorage.setItem("ice_panda_report", JSON.stringify(report));
       setInvestigationModalOpen(false);
       navigate("/report/live");
@@ -46,7 +45,7 @@ const Dashboard = () => {
               <IcePandaLogo size="large" />
             </div>
             <p className="text-muted-foreground text-sm max-w-md mx-auto leading-relaxed">
-              AI-powered due diligence. Paste a LinkedIn URL and uncover criminal records, 
+              AI-powered due diligence. Upload a LinkedIn profile screenshot and uncover criminal records, 
               litigation, fraud, sanctions, and more — in seconds.
             </p>
           </motion.div>
@@ -56,7 +55,7 @@ const Dashboard = () => {
             <ActionCard
               icon={Search}
               title="New Investigation"
-              description="Paste a LinkedIn profile URL to run comprehensive due diligence"
+              description="Upload a LinkedIn profile screenshot to run comprehensive due diligence"
               accentColor="#3B82F6"
               onClick={() => setInvestigationModalOpen(true)}
               delay={0.15}

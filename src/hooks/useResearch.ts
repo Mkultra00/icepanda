@@ -63,14 +63,14 @@ export const useResearch = () => {
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<ResearchReport | null>(null);
 
-  const runResearch = async (linkedinUrl: string, context: string, scopes: Record<string, boolean>) => {
+  const runResearch = async (imageBase64: string | null, context: string, scopes: Record<string, boolean>) => {
     setLoading(true);
     setError(null);
     setReport(null);
 
     try {
       const { data, error: fnError } = await supabase.functions.invoke("research", {
-        body: { linkedinUrl, context, scopes },
+        body: { imageBase64, context, scopes },
       });
 
       if (fnError) throw new Error(fnError.message);
