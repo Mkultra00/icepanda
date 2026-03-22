@@ -421,6 +421,74 @@ const searchEpsteinDocumentsDirect = async (fullName: string): Promise<WebMentio
     console.warn("Epstein black book full name fetch failed:", err);
   }
 
+  // Deep scrape: when Epstein Web Tracker found person pages, fetch and extract detail
+  for (const mention of [...mentions]) {
+    if (!mention.url.includes("epsteinweb.org/") || mention.snippet.length > 200) continue;
+    try {
+      const pageResp = await fetch(mention.url, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+      });
+      if (!pageResp.ok) continue;
+      const pageHtml = await pageResp.text();
+      const paragraphs: string[] = [];
+      const pRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi;
+      let pMatch: RegExpExecArray | null;
+      while ((pMatch = pRegex.exec(pageHtml)) !== null) {
+        const text = stripHtml(pMatch[1]).trim();
+        if (text.length > 40 && /epstein|flight|email|connection|document|book|maxwell/i.test(text)) {
+          paragraphs.push(text);
+        }
+        if (paragraphs.length >= 3) break;
+      }
+      if (paragraphs.length > 0) {
+        mention.snippet = paragraphs.join(" | ").slice(0, 500);
+      }
+    } catch (err) {
+      console.warn("Epstein Web Tracker page scrape failed:", err);
+    }
+  }
+
+  // Additional Epstein-focused web research across archive/wiki/exposed sites
+  const additionalEpsteinQueries = [
+    `site:epsteinexposed.com "${fullNameStr}"`,
+    `site:epsteinfiles.org "${fullNameStr}"`,
+    `"${fullNameStr}" epstein emails`,
+    `"${fullNameStr}" epstein connection documents`,
+    `"${fullNameStr}" jeffrey epstein associate`,
+  ];
+
+  for (const query of additionalEpsteinQueries) {
+    if (mentions.length >= 12) break;
+    try {
+      const response = await fetch(`https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
+      });
+      if (!response.ok) continue;
+      const html = await response.text();
+      linkRegex.lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = linkRegex.exec(html)) !== null) {
+        const href = unwrapDuckDuckGoRedirect(match[1]);
+        const title = decodeHtmlEntities(stripHtml(match[2] ?? ""));
+        if (!href || !title || seenUrls.has(href)) continue;
+        const nearby = html.slice(match.index, match.index + 1500);
+        const snippetMatch = nearby.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>|<div[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/div>/i);
+        const snippet = decodeHtmlEntities(stripHtml(snippetMatch?.[1] ?? snippetMatch?.[2] ?? ""));
+        const combined = normalizePersonName(\`\${title} \${snippet}\`);
+        const hasNameToken = nameTokens.some((t) => t.length >= 3 && combined.includes(t));
+        const hasEpstein = combined.includes("epstein");
+        if (!hasNameToken || !hasEpstein) continue;
+        mentions.push({ title, snippet, url: href, reliability: scoreMentionReliability(href) });
+        seenUrls.add(href);
+        if (mentions.length >= 12) break;
+      }
+    } catch (err) {
+      console.warn("Additional Epstein web research query failed:", err);
+    }
+  }
+
+
+
   return mentions;
 };
 
