@@ -34,6 +34,7 @@ export interface GitHubIntegrityReport {
   };
   redFlags: GitHubRedFlag[];
   positiveSignals: GitHubPositiveSignal[];
+  similarRepos: GitHubSimilarRepo[];
   developmentFlow: string;
   analyzedAt: string;
   rawStats: {
