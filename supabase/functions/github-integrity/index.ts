@@ -57,10 +57,16 @@ const fetchGitHubData = async (owner: string, repo: string) => {
 
   // Hour-of-day distribution
   const hourBuckets: Record<number, number> = {};
+  const uniqueDays = new Set<string>();
   sortedDates.forEach((t: number) => {
-    const h = new Date(t).getUTCHours();
+    const d = new Date(t);
+    const h = d.getUTCHours();
     hourBuckets[h] = (hourBuckets[h] || 0) + 1;
+    uniqueDays.add(d.toISOString().slice(0, 10));
   });
+
+  const uniqueDayCount = uniqueDays.size;
+  const allSameDay = uniqueDayCount <= 1 && sortedDates.length > 1;
 
   return {
     repo: {
@@ -83,6 +89,9 @@ const fetchGitHubData = async (owner: string, repo: string) => {
       avgGapMinutes,
       hourDistribution: hourBuckets,
       gaps: gaps.slice(0, 20),
+      uniqueDayCount,
+      allCommitsSameDay: allSameDay,
+      uniqueDays: [...uniqueDays].sort(),
     },
     contributors: (Array.isArray(contributors) ? contributors : []).map((c: any) => ({
       login: c.login,
@@ -117,11 +126,12 @@ serve(async (req) => {
 
 ANALYSIS CRITERIA:
 1. **Commit Timing Patterns**: Are commits evenly spaced (suspicious) or naturally irregular? Were they all made in a very short burst?
-2. **Commit Messages**: Are they meaningful or generic/auto-generated? Do they follow a natural progression?
-3. **Contributor Patterns**: Single author or team? Does contribution distribution look natural?
-4. **Development Flow**: Does the commit history show iterative development (builds, fixes, refactors) or was code dumped in large chunks?
-5. **Red Flags**: Force pushes, squashed history hiding prior work, weekend-only commits during "work" claims, timezone inconsistencies, suspiciously perfect commit cadence.
-6. **Positive Signals**: Bug fixes after features, README updates, incremental progress, review-style improvements.
+2. **Commit Day Spread**: Were ALL commits made on the same calendar day, or spread across multiple days? If all commits happened on one day, flag this as a major red flag — authentic projects almost always span multiple days. Report the exact number of unique commit days.
+3. **Commit Messages**: Are they meaningful or generic/auto-generated? Do they follow a natural progression?
+4. **Contributor Patterns**: Single author or team? Does contribution distribution look natural?
+5. **Development Flow**: Does the commit history show iterative development (builds, fixes, refactors) or was code dumped in large chunks?
+6. **Red Flags**: Force pushes, squashed history hiding prior work, weekend-only commits during "work" claims, timezone inconsistencies, suspiciously perfect commit cadence, ALL commits on same day.
+7. **Positive Signals**: Bug fixes after features, README updates, incremental progress, review-style improvements, commits spread across many days.
 
 Be direct and analytical. If the repo looks suspicious, say so clearly with evidence.`;
 
@@ -156,7 +166,9 @@ Be direct and analytical. If the repo looks suspicious, say so clearly with evid
                     totalCommits: { type: "number" },
                     timeSpan: { type: "string" },
                     avgGapMinutes: { type: "number" },
-                    pattern: { type: "string", description: "Description of the commit timing pattern" },
+                    uniqueCommitDays: { type: "number", description: "Number of distinct calendar days with commits" },
+                    allCommitsSameDay: { type: "boolean", description: "True if every commit was made on the same calendar day" },
+                    pattern: { type: "string", description: "Description of the commit timing pattern including day spread analysis" },
                     messageQuality: { type: "string", enum: ["high", "medium", "low"] },
                     messageAnalysis: { type: "string" },
                   },
