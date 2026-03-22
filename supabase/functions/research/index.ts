@@ -76,6 +76,15 @@ const fetchLinkedInAnchor = async (normalizedUrl: string): Promise<LinkedInAncho
     const companyMatch = markdown.match(/introduce you to \d+ people at ([^\n]+)/i);
     if (companyMatch?.[1]) anchor.company = companyMatch[1].trim();
 
+    // Extract profile image - jina returns images in markdown format ![alt](url)
+    const imgMatch = markdown.match(/!\[.*?\]\((https:\/\/media\.licdn\.com\/[^\s)]+)\)/);
+    if (imgMatch?.[1]) anchor.profileImageUrl = imgMatch[1];
+    // Also try the "Image" metadata line
+    if (!anchor.profileImageUrl) {
+      const imgLineMatch = markdown.match(/^Image:\s*(https:\/\/[^\s]+)/m);
+      if (imgLineMatch?.[1]) anchor.profileImageUrl = imgLineMatch[1];
+    }
+
     if (!anchor.fullName) anchor.fullName = slugToNameFallback(normalizedUrl);
     if (!anchor.initials) anchor.initials = toInitials(anchor.fullName);
   } catch (error) {
