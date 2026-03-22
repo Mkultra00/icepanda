@@ -126,11 +126,12 @@ serve(async (req) => {
 
 ANALYSIS CRITERIA:
 1. **Commit Timing Patterns**: Are commits evenly spaced (suspicious) or naturally irregular? Were they all made in a very short burst?
-2. **Commit Messages**: Are they meaningful or generic/auto-generated? Do they follow a natural progression?
-3. **Contributor Patterns**: Single author or team? Does contribution distribution look natural?
-4. **Development Flow**: Does the commit history show iterative development (builds, fixes, refactors) or was code dumped in large chunks?
-5. **Red Flags**: Force pushes, squashed history hiding prior work, weekend-only commits during "work" claims, timezone inconsistencies, suspiciously perfect commit cadence.
-6. **Positive Signals**: Bug fixes after features, README updates, incremental progress, review-style improvements.
+2. **Commit Day Spread**: Were ALL commits made on the same calendar day, or spread across multiple days? If all commits happened on one day, flag this as a major red flag — authentic projects almost always span multiple days. Report the exact number of unique commit days.
+3. **Commit Messages**: Are they meaningful or generic/auto-generated? Do they follow a natural progression?
+4. **Contributor Patterns**: Single author or team? Does contribution distribution look natural?
+5. **Development Flow**: Does the commit history show iterative development (builds, fixes, refactors) or was code dumped in large chunks?
+6. **Red Flags**: Force pushes, squashed history hiding prior work, weekend-only commits during "work" claims, timezone inconsistencies, suspiciously perfect commit cadence, ALL commits on same day.
+7. **Positive Signals**: Bug fixes after features, README updates, incremental progress, review-style improvements, commits spread across many days.
 
 Be direct and analytical. If the repo looks suspicious, say so clearly with evidence.`;
 
