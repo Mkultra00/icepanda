@@ -126,6 +126,13 @@ const Dashboard = () => {
         onStart={handleGitHubAnalysis}
         loading={githubLoading}
       />
+
+      <PhotoIdentifyModal
+        open={photoModalOpen}
+        onClose={() => setPhotoModalOpen(false)}
+        onStart={handlePhotoIdentify}
+        loading={photoLoading}
+      />
     </div>
   );
 };
