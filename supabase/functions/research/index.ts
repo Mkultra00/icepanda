@@ -248,6 +248,87 @@ const searchWebMentions = async (fullName: string, config: CategorySearchConfig)
   }
 };
 
+// Direct Epstein document search — fetches known public sources and scans for name
+const searchEpsteinDocumentsDirect = async (fullName: string): Promise<WebMention[]> => {
+  const nameTokens = tokenizeIdentity(fullName);
+  if (!nameTokens.length) return [];
+
+  const mentions: WebMention[] = [];
+  const seenUrls = new Set<string>();
+  const linkRegex = /<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+
+  // Specific Epstein document queries — broader and more varied
+  const specificQueries = [
+    `site:epsteinsblackbook.com ${nameTokens.join(" ")}`,
+    `"epstein" "black book" "${nameTokens[nameTokens.length - 1]}"`,
+    `"epstein" "flight log" "${nameTokens[nameTokens.length - 1]}"`,
+    `"epstein" "lolita express" "${nameTokens[nameTokens.length - 1]}"`,
+    `"jeffrey epstein" "${nameTokens.join(" ")}"`,
+    `ghislaine maxwell "${nameTokens[nameTokens.length - 1]}" documents`,
+    `epstein associates list "${nameTokens[nameTokens.length - 1]}"`,
+    `epstein court documents "${nameTokens.join(" ")}"`,
+  ];
+
+  for (const query of specificQueries) {
+    if (mentions.length >= 5) break;
+    try {
+      const response = await fetch(`https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
+      });
+      if (!response.ok) continue;
+      const html = await response.text();
+      let match: RegExpExecArray | null;
+
+      while ((match = linkRegex.exec(html)) !== null) {
+        const href = unwrapDuckDuckGoRedirect(match[1]);
+        const title = decodeHtmlEntities(stripHtml(match[2] ?? ""));
+        if (!href || !title || seenUrls.has(href)) continue;
+
+        const nearby = html.slice(match.index, match.index + 1500);
+        const snippetMatch = nearby.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>|<div[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/div>/i);
+        const snippet = decodeHtmlEntities(stripHtml(snippetMatch?.[1] ?? snippetMatch?.[2] ?? ""));
+        const combined = normalizePersonName(`${title} ${snippet}`);
+
+        const hasNameToken = nameTokens.some((t) => t.length >= 3 && combined.includes(t));
+        if (!hasNameToken) continue;
+
+        mentions.push({ title, snippet, url: href, reliability: scoreMentionReliability(href) });
+        seenUrls.add(href);
+        if (mentions.length >= 5) break;
+      }
+    } catch (err) {
+      console.warn("Epstein direct search query failed:", err);
+    }
+  }
+
+  // Direct fetch from epsteinsblackbook.com
+  try {
+    const lastName = nameTokens[nameTokens.length - 1];
+    const bbResponse = await fetch(`https://epsteinsblackbook.com/names/${encodeURIComponent(lastName)}`, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+    });
+    if (bbResponse.ok) {
+      const bbHtml = await bbResponse.text();
+      const normalized = normalizePersonName(bbHtml);
+      const nameMatches = nameTokens.filter((t) => t.length >= 3 && normalized.includes(t));
+      if (nameMatches.length > 0 && !seenUrls.has(bbResponse.url)) {
+        const titleMatch = bbHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+        const pageTitle = titleMatch ? stripHtml(titleMatch[1]) : "Epstein Black Book Entry";
+        mentions.push({
+          title: `Black Book: ${pageTitle}`,
+          snippet: `Name match found on epsteinsblackbook.com for tokens: ${nameMatches.join(", ")}. Direct document source.`,
+          url: bbResponse.url,
+          reliability: "HIGH",
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("Epstein black book direct fetch failed:", err);
+  }
+
+  return mentions;
+};
+
 const addWebFallbackFindings = async (report: any, fullName?: string) => {
   if (!fullName) return report;
 
