@@ -173,14 +173,37 @@ const CATEGORY_SEARCH_CONFIGS: CategorySearchConfig[] = [
 
 const searchWebMentions = async (fullName: string, config: CategorySearchConfig): Promise<WebMention[]> => {
   try {
-    const searchIdentity = tokenizeIdentity(fullName).join(" ").trim() || fullName;
-    const queries = config.searchTerms.slice(0, 3).map((term) => `"${searchIdentity}" ${term}`);
+    const nameTokens = tokenizeIdentity(fullName);
+    const searchIdentity = nameTokens.join(" ").trim() || fullName;
+
+    // Build queries: use both quoted and unquoted name for broader coverage
+    let queries: string[];
+    if (config.category === "Epstein Files") {
+      // Epstein searches need to be more aggressive — names may appear in various forms in documents
+      const lastName = nameTokens[nameTokens.length - 1] || fullName;
+      queries = [
+        `${searchIdentity} Epstein flight logs`,
+        `${searchIdentity} Epstein black book`,
+        `${searchIdentity} Jeffrey Epstein`,
+        `"${searchIdentity}" Epstein`,
+        `${lastName} Epstein flight logs lolita express`,
+        `${lastName} Epstein black book contact list`,
+        `${searchIdentity} Ghislaine Maxwell`,
+      ];
+    } else {
+      queries = [
+        ...config.searchTerms.slice(0, 2).map((term) => `"${searchIdentity}" ${term}`),
+        ...config.searchTerms.slice(0, 2).map((term) => `${searchIdentity} ${term}`),
+      ];
+    }
 
     const mentions: WebMention[] = [];
     const seenUrls = new Set<string>();
     const linkRegex = /<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
 
     for (const query of queries) {
+      if (mentions.length >= 5) break;
+
       const response = await fetch(`https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
         headers: { "User-Agent": "Mozilla/5.0 (compatible; ICE-Panda/1.0)" },
       });
@@ -203,14 +226,19 @@ const searchWebMentions = async (fullName: string, config: CategorySearchConfig)
 
         const hasRequiredKeyword = config.requiredKeywords.some((kw) => normalizedCombined.includes(kw));
         if (!hasRequiredKeyword) continue;
-        if (!nameAppearsInText(searchIdentity, combined)) continue;
+
+        // For Epstein category, be more lenient with name matching — even a last name match counts
+        if (config.category === "Epstein Files") {
+          const lastNameMatch = nameTokens.some((token) => token.length >= 3 && normalizedCombined.includes(token));
+          if (!lastNameMatch) continue;
+        } else {
+          if (!nameAppearsInText(searchIdentity, combined)) continue;
+        }
 
         mentions.push({ title, snippet, url: href, reliability: scoreMentionReliability(href) });
         seenUrls.add(href);
         if (mentions.length >= 5) break;
       }
-
-      if (mentions.length > 0) break;
     }
 
     return mentions;
