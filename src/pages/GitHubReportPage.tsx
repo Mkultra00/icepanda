@@ -5,7 +5,7 @@ import { TopNav } from "../components/TopNav";
 import { ScanOverlay } from "../components/ScanOverlay";
 import {
   Github, AlertTriangle, CheckCircle2, ShieldAlert, ChevronDown, ChevronRight,
-  GitCommit, Users, Clock, Star, GitBranch, Code, ExternalLink
+  GitCommit, Users, Clock, Star, GitBranch, Code, ExternalLink, Copy
 } from "lucide-react";
 import { GitHubIntegrityReport } from "../hooks/useGitHubIntegrity";
 
@@ -29,6 +29,7 @@ const GitHubReportPage = () => {
   const [report, setReport] = useState<GitHubIntegrityReport | null>(null);
   const [showRedFlags, setShowRedFlags] = useState(true);
   const [showPositive, setShowPositive] = useState(true);
+  const [showSimilar, setShowSimilar] = useState(true);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("ice_panda_github_report");
@@ -251,6 +252,57 @@ const GitHubReportPage = () => {
               </div>
             )}
           </motion.div>
+
+          {/* Similar Repositories */}
+          {report.similarRepos && report.similarRepos.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.45, duration: 0.5 }}
+              className="glass rounded-xl overflow-hidden mt-4"
+            >
+              <button onClick={() => setShowSimilar(!showSimilar)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-white/[0.02] transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-md bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
+                    <Copy className="w-3.5 h-3.5 text-amber-400" />
+                  </div>
+                  <span className="text-sm font-medium text-foreground">Similar Repositories</span>
+                  <span className="text-xs font-mono text-muted-foreground">{report.similarRepos.length} found</span>
+                </div>
+                {showSimilar ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+              </button>
+              {showSimilar && (
+                <div className="border-t border-border/50 divide-y divide-border/30">
+                  {report.similarRepos.map((repo, j) => (
+                    <div key={j} className="px-5 py-4">
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div className="flex items-center gap-2">
+                          <a href={repo.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-1.5">
+                            {repo.name}
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                          {repo.language && (
+                            <span className="text-[10px] font-mono text-muted-foreground bg-secondary/50 px-1.5 py-0.5 rounded">{repo.language}</span>
+                          )}
+                          {repo.stars != null && (
+                            <span className="text-[10px] font-mono text-muted-foreground flex items-center gap-0.5"><Star className="w-2.5 h-2.5" />{repo.stars}</span>
+                          )}
+                        </div>
+                        <span className={`text-[10px] font-mono font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${
+                          repo.similarityScore >= 70 ? "bg-red-500/15 text-red-400 border border-red-500/20" :
+                          repo.similarityScore >= 40 ? "bg-yellow-500/15 text-yellow-400 border border-yellow-500/20" :
+                          "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
+                        }`}>
+                          {repo.similarityScore}% SIMILAR
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{repo.assessment}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          )}
         </div>
       </main>
     </div>

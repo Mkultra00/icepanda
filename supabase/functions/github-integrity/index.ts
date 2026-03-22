@@ -25,6 +25,36 @@ const fetchGitHubData = async (owner: string, repo: string) => {
   const contributors = contributorsRes.ok ? await contributorsRes.json() : [];
   const branches = branchesRes.ok ? await branchesRes.json() : [];
 
+  // Search for similar repositories
+  const repoName = repoData.name;
+  const language = repoData.language || "";
+  const description = repoData.description || "";
+  
+  // Build search query from repo name and language
+  const searchQuery = `${repoName}${language ? ` language:${language}` : ""}`;
+  let similarRepos: any[] = [];
+  try {
+    const searchRes = await fetch(`https://api.github.com/search/repositories?q=${encodeURIComponent(searchQuery)}&sort=stars&per_page=10`, { headers });
+    if (searchRes.ok) {
+      const searchData = await searchRes.json();
+      similarRepos = (searchData.items || [])
+        .filter((r: any) => r.full_name !== repoData.full_name)
+        .slice(0, 5)
+        .map((r: any) => ({
+          name: r.full_name,
+          description: r.description?.substring(0, 200),
+          url: r.html_url,
+          stars: r.stargazers_count,
+          forks: r.forks_count,
+          language: r.language,
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+        }));
+    }
+  } catch (e) {
+    console.error("Similar repo search failed:", e);
+  }
+
   // Analyze commit timing patterns
   const commitTimestamps = (Array.isArray(commits) ? commits : []).map((c: any) => ({
     date: c.commit?.author?.date,
@@ -34,7 +64,6 @@ const fetchGitHubData = async (owner: string, repo: string) => {
     deletions: c.stats?.deletions,
   }));
 
-  // Calculate time gaps between commits
   const sortedDates = commitTimestamps
     .map((c: any) => new Date(c.date).getTime())
     .filter((t: number) => !isNaN(t))
@@ -48,14 +77,12 @@ const fetchGitHubData = async (owner: string, repo: string) => {
     ? Math.round(gaps.reduce((s: number, g: any) => s + g.gapMinutes, 0) / gaps.length)
     : 0;
 
-  // Time span
   const firstCommit = sortedDates.length > 0 ? new Date(sortedDates[0]).toISOString() : null;
   const lastCommit = sortedDates.length > 0 ? new Date(sortedDates[sortedDates.length - 1]).toISOString() : null;
   const totalSpanHours = sortedDates.length > 1
     ? Math.round((sortedDates[sortedDates.length - 1] - sortedDates[0]) / 3600000)
     : 0;
 
-  // Hour-of-day distribution
   const hourBuckets: Record<number, number> = {};
   const uniqueDays = new Set<string>();
   sortedDates.forEach((t: number) => {
@@ -98,6 +125,7 @@ const fetchGitHubData = async (owner: string, repo: string) => {
       contributions: c.contributions,
     })),
     branches: (Array.isArray(branches) ? branches : []).map((b: any) => b.name),
+    similarRepos,
   };
 };
 
@@ -132,6 +160,7 @@ ANALYSIS CRITERIA:
 5. **Development Flow**: Does the commit history show iterative development (builds, fixes, refactors) or was code dumped in large chunks?
 6. **Red Flags**: Force pushes, squashed history hiding prior work, weekend-only commits during "work" claims, timezone inconsistencies, suspiciously perfect commit cadence, ALL commits on same day.
 7. **Positive Signals**: Bug fixes after features, README updates, incremental progress, review-style improvements, commits spread across many days.
+8. **Similar Repositories**: Compare the target repo against similar repositories found on GitHub. Assess how similar they are in terms of name, description, language, structure, and purpose. Assign a similarity score (0-100) to each. High similarity to well-known projects could indicate cloning/forking without attribution. Note if the target appears to be a derivative or copy.
 
 Be direct and analytical. If the repo looks suspicious, say so clearly with evidence.`;
 
@@ -205,8 +234,24 @@ Be direct and analytical. If the repo looks suspicious, say so clearly with evid
                   },
                 },
                 developmentFlow: { type: "string", description: "Assessment of the overall development progression" },
+                similarRepos: {
+                  type: "array",
+                  description: "Similar repositories found on GitHub with similarity assessment",
+                  items: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string", description: "Full repo name (owner/repo)" },
+                      url: { type: "string" },
+                      similarityScore: { type: "number", description: "0-100 similarity score based on name, description, language, and purpose" },
+                      assessment: { type: "string", description: "Brief explanation of similarities and differences" },
+                      stars: { type: "number" },
+                      language: { type: "string" },
+                    },
+                    required: ["name", "url", "similarityScore", "assessment"],
+                  },
+                },
               },
-              required: ["repoName", "authenticityScore", "verdict", "executiveSummary", "commitAnalysis", "contributorAnalysis", "redFlags", "positiveSignals", "developmentFlow"],
+              required: ["repoName", "authenticityScore", "verdict", "executiveSummary", "commitAnalysis", "contributorAnalysis", "redFlags", "positiveSignals", "developmentFlow", "similarRepos"],
             },
           },
         }],
