@@ -95,7 +95,7 @@ const Dashboard = () => {
               title="Photo Identify"
               description="Upload a photo to identify and investigate an individual"
               accentColor="#8B5CF6"
-              onClick={() => {}}
+              onClick={() => setPhotoModalOpen(true)}
               delay={0.25}
             />
             <ActionCard
