@@ -114,9 +114,17 @@ const ReportPage = () => {
             className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6"
           >
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-                <span className="text-xl font-semibold text-primary">{report.target.initials}</span>
-              </div>
+              {report.target.profileImageUrl ? (
+                <img
+                  src={report.target.profileImageUrl}
+                  alt={report.target.fullName}
+                  className="w-14 h-14 rounded-full object-cover border-2 border-primary/20"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+                  <span className="text-xl font-semibold text-primary">{report.target.initials}</span>
+                </div>
+              )}
               <div>
                 <h1 className="text-xl font-bold text-foreground">{report.target.fullName}</h1>
                 <p className="text-sm text-muted-foreground">{report.target.title} — {report.target.company}</p>
