@@ -211,7 +211,7 @@ const enforceAnchorOnReport = (report: any, anchor: LinkedInAnchor) => {
   const existingFindings = Array.isArray(report.findings) ? report.findings : [];
   const byCategory = new Map(existingFindings.map((f: any) => [f.category, f]));
   report.findings = REQUIRED_CATEGORIES.map((category) => {
-    const current = byCategory.get(category);
+    const current = byCategory.get(category) as { items?: unknown[] } | undefined;
     return { category, items: Array.isArray(current?.items) ? current.items : [] };
   });
 
