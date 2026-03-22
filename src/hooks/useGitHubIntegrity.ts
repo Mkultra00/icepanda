@@ -12,6 +12,15 @@ export interface GitHubPositiveSignal {
   evidence: string;
 }
 
+export interface GitHubSimilarRepo {
+  name: string;
+  url: string;
+  similarityScore: number;
+  assessment: string;
+  stars?: number;
+  language?: string;
+}
+
 export interface GitHubIntegrityReport {
   repoName: string;
   repoDescription?: string;
