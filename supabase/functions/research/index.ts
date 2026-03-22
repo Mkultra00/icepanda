@@ -125,14 +125,56 @@ const nameAppearsInText = (name: string, text: string) => {
   );
 };
 
-const searchEpsteinWebMentions = async (fullName: string): Promise<WebMention[]> => {
+type CategorySearchConfig = {
+  category: string;
+  searchTerms: string[];
+  requiredKeywords: string[];
+  severityDefault: "critical" | "high" | "moderate" | "low" | "info";
+};
+
+const CATEGORY_SEARCH_CONFIGS: CategorySearchConfig[] = [
+  {
+    category: "Criminal",
+    searchTerms: ["criminal charges", "arrested", "convicted", "indicted", "criminal investigation"],
+    requiredKeywords: ["criminal", "arrest", "charged", "convicted", "indicted", "felony", "misdemeanor", "plea"],
+    severityDefault: "high",
+  },
+  {
+    category: "Litigation",
+    searchTerms: ["lawsuit", "sued", "litigation", "court case", "legal dispute"],
+    requiredKeywords: ["lawsuit", "sued", "litigation", "plaintiff", "defendant", "court", "settlement", "injunction"],
+    severityDefault: "moderate",
+  },
+  {
+    category: "Fraud & Financial",
+    searchTerms: ["fraud", "financial misconduct", "SEC violation", "embezzlement", "bankruptcy"],
+    requiredKeywords: ["fraud", "embezzlement", "SEC", "ponzi", "bankrupt", "misconduct", "scandal", "fined"],
+    severityDefault: "high",
+  },
+  {
+    category: "Sanctions",
+    searchTerms: ["sanctions", "OFAC", "watchlist", "export control violation", "sanctioned"],
+    requiredKeywords: ["sanction", "OFAC", "watchlist", "blacklist", "embargo", "export control", "designated"],
+    severityDefault: "critical",
+  },
+  {
+    category: "Sex Offender",
+    searchTerms: ["sex offender", "sexual assault", "sexual misconduct", "harassment allegation"],
+    requiredKeywords: ["sex offend", "sexual assault", "sexual misconduct", "harassment", "molestation", "indecent"],
+    severityDefault: "critical",
+  },
+  {
+    category: "Epstein Files",
+    searchTerms: ["Epstein", "Epstein Files", "Epstein flight logs", "Epstein black book"],
+    requiredKeywords: ["epstein"],
+    severityDefault: "moderate",
+  },
+];
+
+const searchWebMentions = async (fullName: string, config: CategorySearchConfig): Promise<WebMention[]> => {
   try {
     const searchIdentity = tokenizeIdentity(fullName).join(" ").trim() || fullName;
-    const queries = [
-      `"${searchIdentity}" Epstein`,
-      `"${searchIdentity}" "Epstein Files"`,
-      `${searchIdentity} Epstein flight logs`,
-    ];
+    const queries = config.searchTerms.slice(0, 3).map((term) => `"${searchIdentity}" ${term}`);
 
     const mentions: WebMention[] = [];
     const seenUrls = new Set<string>();
@@ -159,15 +201,11 @@ const searchEpsteinWebMentions = async (fullName: string): Promise<WebMention[]>
         const combined = `${title} ${snippet}`;
         const normalizedCombined = normalizePersonName(combined);
 
-        if (!normalizedCombined.includes("epstein")) continue;
+        const hasRequiredKeyword = config.requiredKeywords.some((kw) => normalizedCombined.includes(kw));
+        if (!hasRequiredKeyword) continue;
         if (!nameAppearsInText(searchIdentity, combined)) continue;
 
-        mentions.push({
-          title,
-          snippet,
-          url: href,
-          reliability: scoreMentionReliability(href),
-        });
+        mentions.push({ title, snippet, url: href, reliability: scoreMentionReliability(href) });
         seenUrls.add(href);
         if (mentions.length >= 5) break;
       }
@@ -177,62 +215,76 @@ const searchEpsteinWebMentions = async (fullName: string): Promise<WebMention[]>
 
     return mentions;
   } catch (error) {
-    console.warn("Epstein web mention scan failed:", error);
+    console.warn(`${config.category} web mention scan failed:`, error);
     return [];
   }
 };
 
-const addEpsteinWebFallbackFindings = async (report: any, fullName?: string) => {
+const addWebFallbackFindings = async (report: any, fullName?: string) => {
   if (!fullName) return report;
 
   const findings = Array.isArray(report.findings) ? report.findings : [];
-  const epsteinCategory = findings.find((item: any) => item?.category === "Epstein Files");
-  const existingItems = Array.isArray(epsteinCategory?.items) ? epsteinCategory.items : [];
-  if (existingItems.length > 0) return report;
-
-  const webMentions = await searchEpsteinWebMentions(fullName);
   const sources = Array.isArray(report.sourcesConsulted) ? report.sourcesConsulted : [];
-  sources.push({
-    name: "Open Web Epstein Mention Scan",
-    reliability: webMentions.length > 0 ? "MEDIUM" : "LOW",
-    status: webMentions.length > 0 ? `Potential match(es) found for ${fullName}` : `No additional web matches for ${fullName}`,
-  });
+  const identitySignals = Array.isArray(report.identitySignals) ? report.identitySignals : [];
+  let anyMentionsFound = false;
+  const categoriesWithMentions: string[] = [];
+
+  for (const config of CATEGORY_SEARCH_CONFIGS) {
+    const existingCategory = findings.find((item: any) => item?.category === config.category);
+    const existingItems = Array.isArray(existingCategory?.items) ? existingCategory.items : [];
+    if (existingItems.length > 0) continue;
+
+    const webMentions = await searchWebMentions(fullName, config);
+
+    sources.push({
+      name: `Open Web ${config.category} Scan`,
+      reliability: webMentions.length > 0 ? "MEDIUM" : "LOW",
+      status: webMentions.length > 0
+        ? `Potential ${config.category.toLowerCase()} match(es) found for ${fullName}`
+        : `No additional ${config.category.toLowerCase()} web matches for ${fullName}`,
+    });
+
+    if (!webMentions.length) continue;
+
+    anyMentionsFound = true;
+    categoriesWithMentions.push(config.category);
+
+    const mappedItems = webMentions.slice(0, 3).map((mention) => ({
+      title: `Potential ${config.category} mention: ${mention.title}`,
+      source: mention.url,
+      reliability: mention.reliability,
+      confidence: mention.reliability === "HIGH" ? 70 : mention.reliability === "MEDIUM" ? 55 : 40,
+      severity: config.severityDefault,
+      summary: mention.snippet
+        ? `Open web result indicates a possible ${config.category.toLowerCase()} mention for ${fullName}. Snippet: ${mention.snippet}. Manual verification required.`
+        : `Open web result indicates a possible ${config.category.toLowerCase()} mention for ${fullName}. Manual verification required.`,
+    }));
+
+    if (existingCategory) {
+      existingCategory.items = mappedItems;
+    } else {
+      findings.push({ category: config.category, items: mappedItems });
+    }
+  }
+
+  report.findings = findings;
   report.sourcesConsulted = sources;
 
-  if (!webMentions.length) return report;
+  if (anyMentionsFound) {
+    identitySignals.unshift({
+      label: `Potential web mentions detected in: ${categoriesWithMentions.join(", ")}; manual verification recommended`,
+      verified: false,
+    });
+    report.identitySignals = identitySignals;
 
-  const mappedItems = webMentions.slice(0, 3).map((mention) => ({
-    title: `Potential Epstein-related mention: ${mention.title}`,
-    source: mention.url,
-    reliability: mention.reliability,
-    confidence: mention.reliability === "HIGH" ? 70 : mention.reliability === "MEDIUM" ? 55 : 40,
-    severity: "moderate",
-    summary: mention.snippet
-      ? `Open web result indicates a possible Epstein-related mention for ${fullName}. Snippet: ${mention.snippet}. Manual verification required.`
-      : `Open web result indicates a possible Epstein-related mention for ${fullName}. Manual verification required.`,
-  }));
+    report.riskScore = Math.max(normalizeScore(report.riskScore), 40);
+    if (report.riskLevel === "clear" || report.riskLevel === "low") {
+      report.riskLevel = "moderate";
+    }
 
-  if (epsteinCategory) {
-    epsteinCategory.items = mappedItems;
-  } else {
-    findings.push({ category: "Epstein Files", items: mappedItems });
-    report.findings = findings;
+    const currentSummary = typeof report.executiveSummary === "string" ? report.executiveSummary : "";
+    report.executiveSummary = `${currentSummary} Open web scanning found potential adverse mentions in ${categoriesWithMentions.join(", ")} that were included for manual validation.`.trim();
   }
-
-  const identitySignals = Array.isArray(report.identitySignals) ? report.identitySignals : [];
-  identitySignals.unshift({
-    label: "Potential Epstein-file web mentions detected; manual verification recommended",
-    verified: false,
-  });
-  report.identitySignals = identitySignals;
-
-  report.riskScore = Math.max(normalizeScore(report.riskScore), 40);
-  if (report.riskLevel === "clear" || report.riskLevel === "low") {
-    report.riskLevel = "moderate";
-  }
-
-  const currentSummary = typeof report.executiveSummary === "string" ? report.executiveSummary : "";
-  report.executiveSummary = `${currentSummary} Open web scanning found potential Epstein-related mentions that were included for manual validation.`.trim();
 
   return report;
 };
