@@ -690,7 +690,7 @@ serve(async (req) => {
     }
 
     const anchoredReport = enforceAnchorOnReport(report, anchor);
-    const enrichedReport = await addEpsteinWebFallbackFindings(
+    const enrichedReport = await addWebFallbackFindings(
       anchoredReport,
       anchor.fullName ?? anchoredReport?.target?.fullName,
     );
