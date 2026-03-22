@@ -139,50 +139,8 @@ const applyIdentityMismatchSafeguards = (report: any, anchor: LinkedInAnchor) =>
   return report;
 };
 
-const searchForPortrait = async (fullName: string): Promise<string | undefined> => {
-  try {
-    const query = `${fullName} portrait photo face headshot`;
-    const jinaSearchUrl = `https://s.jina.ai/${encodeURIComponent(query)}`;
-    const response = await fetch(jinaSearchUrl, {
-      headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
-    });
-    const text = await response.text();
-
-    // Look for image URLs in the search results
-    const imagePatterns = [
-      // Common portrait/headshot image URLs
-      /https?:\/\/[^\s"'<>]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"'<>]*)?/gi,
-    ];
-
-    for (const pattern of imagePatterns) {
-      const matches = text.match(pattern) || [];
-      for (const url of matches) {
-        const lower = url.toLowerCase();
-        // Skip obvious non-portrait images
-        if (lower.includes("logo") || lower.includes("icon") || lower.includes("banner") ||
-            lower.includes("background") || lower.includes("sprite") || lower.includes("placeholder") ||
-            lower.includes("avatar-default") || lower.includes("1x1") || lower.includes("pixel")) {
-          continue;
-        }
-        // Prefer URLs that suggest a portrait
-        if (lower.includes("headshot") || lower.includes("portrait") || lower.includes("profile") ||
-            lower.includes("photo") || lower.includes("face") || lower.includes("staff") ||
-            lower.includes("team") || lower.includes("people") || lower.includes("author")) {
-          return url;
-        }
-      }
-      // If no portrait-hinted URL, return the first reasonable image
-      const fallback = matches.find(url => {
-        const l = url.toLowerCase();
-        return !l.includes("logo") && !l.includes("icon") && !l.includes("banner") && !l.includes("sprite");
-      });
-      if (fallback) return fallback;
-    }
-  } catch (error) {
-    console.warn("Portrait search failed:", error);
-  }
-  return undefined;
-};
+// Portrait search removed — web image search returns wrong-person photos.
+// Only LinkedIn profile images (from Jina scrape) are trustworthy.
 
 const fetchLinkedInAnchor = async (normalizedUrl: string): Promise<LinkedInAnchor> => {
   const anchor: LinkedInAnchor = { normalizedUrl };
@@ -235,15 +193,7 @@ const fetchLinkedInAnchor = async (normalizedUrl: string): Promise<LinkedInAncho
     if (!anchor.fullName) anchor.fullName = slugToNameFallback(normalizedUrl);
     if (!anchor.initials) anchor.initials = toInitials(anchor.fullName);
 
-    // If no profile image found from LinkedIn, search the web for their portrait
-    if (!anchor.profileImageUrl && anchor.fullName) {
-      console.log("No LinkedIn profile image found, searching web for portrait of:", anchor.fullName);
-      const portraitUrl = await searchForPortrait(anchor.fullName + (anchor.company ? ` ${anchor.company}` : ""));
-      if (portraitUrl) {
-        anchor.profileImageUrl = portraitUrl;
-        console.log("Found portrait via web search:", portraitUrl);
-      }
-    }
+    // Only use LinkedIn profile image — web search returns wrong-person photos
   } catch (error) {
     console.warn("Could not fetch LinkedIn anchor data:", error);
     anchor.fullName = anchor.fullName ?? slugToNameFallback(normalizedUrl);
