@@ -252,6 +252,15 @@ You MUST actively search for and report ANY negative, adverse, or controversial 
 - Questionable business practices, failed ventures with investor losses
 - Social media controversies, inflammatory public statements
 
+EPSTEIN FILES — CRITICAL INSTRUCTION:
+You MUST specifically check whether this person's name appears in the Jeffrey Epstein flight logs, court documents, black book, or any related unsealed files. The Epstein files include:
+- Flight logs of Jeffrey Epstein's private aircraft (the "Lolita Express")
+- Ghislaine Maxwell trial exhibits and unsealed court documents
+- Jeffrey Epstein's black book / contact list
+- Civil lawsuit depositions mentioning associates
+- Any media reports linking this person to Epstein, Maxwell, or their network
+If the person's name (or a plausible variation) appears in ANY of these documents, you MUST report it as a finding under the "Epstein Files" category with the specific document source and context. Do NOT omit Epstein connections out of caution — this is a due diligence report and the user needs complete information. If their name genuinely does not appear, return an empty items array for that category.
+
 Do NOT shy away from reporting negative findings. The purpose of this report is risk assessment — omitting adverse information defeats the purpose. If genuinely no adverse findings exist for a category, return an empty items array, but err on the side of including borderline findings with appropriate confidence scores rather than omitting them.
 
 Return ONLY structured report JSON via tool call.`;
