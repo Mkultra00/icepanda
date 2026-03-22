@@ -273,6 +273,39 @@ const searchEpsteinDocumentsDirect = async (fullName: string): Promise<WebMentio
   // Comprehensive Epstein document queries across multiple source types
   const lastName = nameTokens[nameTokens.length - 1];
   const fullNameStr = nameTokens.join(" ");
+
+  // Direct search against Epstein Web Tracker (WordPress search)
+  try {
+    const trackerResponse = await fetch(`https://epsteinweb.org/?s=${encodeURIComponent(fullNameStr)}`, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+    });
+    if (trackerResponse.ok) {
+      const trackerHtml = await trackerResponse.text();
+      const trackerResultRegex = /<h2[^>]*class="[^"]*entry-title[^"]*"[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+      let trackerMatch: RegExpExecArray | null;
+      while ((trackerMatch = trackerResultRegex.exec(trackerHtml)) !== null) {
+        const href = trackerMatch[1];
+        const title = decodeHtmlEntities(stripHtml(trackerMatch[2] ?? ""));
+        if (!href || !title || seenUrls.has(href) || !href.includes("epsteinweb.org")) continue;
+
+        const combined = normalizePersonName(`${title} ${href}`);
+        const hasNameToken = nameTokens.some((token) => token.length >= 3 && combined.includes(token));
+        if (!hasNameToken) continue;
+
+        mentions.push({
+          title,
+          snippet: "Matched in Epstein Web Tracker direct source search.",
+          url: href,
+          reliability: "HIGH",
+        });
+        seenUrls.add(href);
+        if (mentions.length >= 8) break;
+      }
+    }
+  } catch (err) {
+    console.warn("Epstein Web Tracker direct search failed:", err);
+  }
+
   const specificQueries = [
     `${fullNameStr} Epstein`,
     // Black book sources
