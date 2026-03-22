@@ -281,7 +281,7 @@ const searchEpsteinDocumentsDirect = async (fullName: string): Promise<WebMentio
     });
     if (trackerResponse.ok) {
       const trackerHtml = await trackerResponse.text();
-      const trackerResultRegex = /<h2[^>]*class="[^"]*entry-title[^"]*"[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+      const trackerResultRegex = /<h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
       let trackerMatch: RegExpExecArray | null;
       while ((trackerMatch = trackerResultRegex.exec(trackerHtml)) !== null) {
         const href = trackerMatch[1];
