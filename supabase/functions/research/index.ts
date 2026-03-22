@@ -257,20 +257,40 @@ const searchEpsteinDocumentsDirect = async (fullName: string): Promise<WebMentio
   const seenUrls = new Set<string>();
   const linkRegex = /<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
 
-  // Specific Epstein document queries — broader and more varied
+  // Comprehensive Epstein document queries across multiple source types
+  const lastName = nameTokens[nameTokens.length - 1];
+  const fullNameStr = nameTokens.join(" ");
   const specificQueries = [
-    `site:epsteinsblackbook.com ${nameTokens.join(" ")}`,
-    `"epstein" "black book" "${nameTokens[nameTokens.length - 1]}"`,
-    `"epstein" "flight log" "${nameTokens[nameTokens.length - 1]}"`,
-    `"epstein" "lolita express" "${nameTokens[nameTokens.length - 1]}"`,
-    `"jeffrey epstein" "${nameTokens.join(" ")}"`,
-    `ghislaine maxwell "${nameTokens[nameTokens.length - 1]}" documents`,
-    `epstein associates list "${nameTokens[nameTokens.length - 1]}"`,
-    `epstein court documents "${nameTokens.join(" ")}"`,
+    // Black book sources
+    `site:epsteinsblackbook.com ${fullNameStr}`,
+    `"epstein" "black book" "${lastName}"`,
+    `"epstein" "contact list" "${lastName}"`,
+    // Flight logs
+    `"epstein" "flight log" "${lastName}"`,
+    `"lolita express" "flight" "${lastName}"`,
+    `"epstein" "passenger" "${lastName}"`,
+    // Court documents and legal filings
+    `site:courtlistener.com epstein "${lastName}"`,
+    `site:documentcloud.org epstein "${lastName}"`,
+    `site:law.justia.com epstein "${lastName}"`,
+    `"jeffrey epstein" "${fullNameStr}" court filing`,
+    `"ghislaine maxwell" "${lastName}" deposition`,
+    `"ghislaine maxwell" trial "${lastName}"`,
+    // Unsealed documents
+    `epstein unsealed documents "${lastName}"`,
+    `"doe v epstein" "${lastName}"`,
+    `"giuffre v maxwell" "${lastName}"`,
+    // Media investigations and associate lists
+    `"jeffrey epstein" associates "${fullNameStr}"`,
+    `"jeffrey epstein" "${fullNameStr}" island`,
+    `"epstein" "little st james" "${lastName}"`,
+    // PACER and federal court records
+    `site:recap.law epstein "${lastName}"`,
+    `"southern district" epstein "${lastName}"`,
   ];
 
   for (const query of specificQueries) {
-    if (mentions.length >= 5) break;
+    if (mentions.length >= 8) break;
     try {
       const response = await fetch(`https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
@@ -292,18 +312,22 @@ const searchEpsteinDocumentsDirect = async (fullName: string): Promise<WebMentio
         const hasNameToken = nameTokens.some((t) => t.length >= 3 && combined.includes(t));
         if (!hasNameToken) continue;
 
-        mentions.push({ title, snippet, url: href, reliability: scoreMentionReliability(href) });
+        let reliability = scoreMentionReliability(href);
+        if (["courtlistener.com", "documentcloud.org", "law.justia.com", "recap.law"].some((h) => href.includes(h))) {
+          reliability = "HIGH";
+        }
+
+        mentions.push({ title, snippet, url: href, reliability });
         seenUrls.add(href);
-        if (mentions.length >= 5) break;
+        if (mentions.length >= 8) break;
       }
     } catch (err) {
       console.warn("Epstein direct search query failed:", err);
     }
   }
 
-  // Direct fetch from epsteinsblackbook.com
+  // Direct fetch from epsteinsblackbook.com by last name
   try {
-    const lastName = nameTokens[nameTokens.length - 1];
     const bbResponse = await fetch(`https://epsteinsblackbook.com/names/${encodeURIComponent(lastName)}`, {
       headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
     });
@@ -324,6 +348,28 @@ const searchEpsteinDocumentsDirect = async (fullName: string): Promise<WebMentio
     }
   } catch (err) {
     console.warn("Epstein black book direct fetch failed:", err);
+  }
+
+  // Direct fetch by full name
+  try {
+    const bbResponse2 = await fetch(`https://epsteinsblackbook.com/names/${encodeURIComponent(fullNameStr)}`, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+    });
+    if (bbResponse2.ok) {
+      const bbHtml = await bbResponse2.text();
+      const normalized = normalizePersonName(bbHtml);
+      const nameMatches = nameTokens.filter((t) => t.length >= 3 && normalized.includes(t));
+      if (nameMatches.length > 0 && !seenUrls.has(bbResponse2.url)) {
+        mentions.push({
+          title: `Black Book: Full Name Search`,
+          snippet: `Full name search on epsteinsblackbook.com matched tokens: ${nameMatches.join(", ")}.`,
+          url: bbResponse2.url,
+          reliability: "HIGH",
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("Epstein black book full name fetch failed:", err);
   }
 
   return mentions;
