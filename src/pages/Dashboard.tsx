@@ -7,6 +7,7 @@ import { ActionCard } from "../components/ActionCard";
 import { RecentInvestigations } from "../components/RecentInvestigations";
 import { InvestigationModal } from "../components/InvestigationModal";
 import { GitHubIntegrityModal } from "../components/GitHubIntegrityModal";
+import { PhotoIdentifyModal } from "../components/PhotoIdentifyModal";
 import { IcePandaLogo } from "../components/IcePandaLogo";
 import { useResearch } from "../hooks/useResearch";
 import { useGitHubIntegrity } from "../hooks/useGitHubIntegrity";
@@ -16,8 +17,10 @@ import { toast } from "sonner";
 const Dashboard = () => {
   const [investigationModalOpen, setInvestigationModalOpen] = useState(false);
   const [githubModalOpen, setGithubModalOpen] = useState(false);
+  const [photoModalOpen, setPhotoModalOpen] = useState(false);
   const navigate = useNavigate();
   const { runResearch, loading } = useResearch();
+  const { runResearch: runPhotoResearch, loading: photoLoading } = useResearch();
   const { analyzeRepo, loading: githubLoading } = useGitHubIntegrity();
 
   const handleStartInvestigation = async (imageBase64: string | null, context: string, scopes: Record<string, boolean>) => {
@@ -28,6 +31,18 @@ const Dashboard = () => {
       navigate("/report/live");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Investigation failed");
+    }
+  };
+
+  const handlePhotoIdentify = async (imageBase64: string, context: string) => {
+    try {
+      const scopes = { criminal: true, sex_offender: true, litigation: true, fraud: true, sanctions: true, epstein: true };
+      const report = await runPhotoResearch(imageBase64, context || "Identify this person from the photo and investigate.", scopes);
+      sessionStorage.setItem("ice_panda_report", JSON.stringify(report));
+      setPhotoModalOpen(false);
+      navigate("/report/live");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Photo identification failed");
     }
   };
 
@@ -80,7 +95,7 @@ const Dashboard = () => {
               title="Photo Identify"
               description="Upload a photo to identify and investigate an individual"
               accentColor="#8B5CF6"
-              onClick={() => {}}
+              onClick={() => setPhotoModalOpen(true)}
               delay={0.25}
             />
             <ActionCard
@@ -110,6 +125,13 @@ const Dashboard = () => {
         onClose={() => setGithubModalOpen(false)}
         onStart={handleGitHubAnalysis}
         loading={githubLoading}
+      />
+
+      <PhotoIdentifyModal
+        open={photoModalOpen}
+        onClose={() => setPhotoModalOpen(false)}
+        onStart={handlePhotoIdentify}
+        loading={photoLoading}
       />
     </div>
   );
