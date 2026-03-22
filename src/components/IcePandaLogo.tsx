@@ -10,18 +10,12 @@ export const IcePandaLogo = ({ size = "default" }: { size?: "default" | "large" 
     width: isLarge ? 74 : 44,
     left: isLarge ? -12 : -7,
     top: isLarge ? 62 : 37,
-    transformOrigin: "88% 68%",
-    animation: "arm-wave-left 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite",
-    willChange: "transform",
   } as const;
 
   const rightArmStyle = {
     width: isLarge ? 74 : 44,
     right: isLarge ? -12 : -7,
     top: isLarge ? 62 : 37,
-    transformOrigin: "12% 68%",
-    animation: "arm-wave-right 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite",
-    willChange: "transform",
   } as const;
 
   return (
