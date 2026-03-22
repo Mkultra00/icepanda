@@ -100,6 +100,14 @@ const scoreMentionReliability = (url: string): "HIGH" | "MEDIUM" | "LOW" => {
 };
 
 const NAME_STOPWORDS = new Set(["dr", "mr", "mrs", "ms", "prof", "professor", "sir"]);
+const INVESTIGATION_PLACEHOLDER_TOKENS = new Set(["surname", "unknown", "unnamed", "none", "null", "na", "n/a"]);
+
+const sanitizeInvestigationName = (value: string) =>
+  normalizePersonName(value.replace(/\([^)]*\)/g, " "))
+    .split(" ")
+    .filter(Boolean)
+    .filter((token) => !INVESTIGATION_PLACEHOLDER_TOKENS.has(token))
+    .join(" ");
 
 const tokenizeIdentity = (value: string) =>
   normalizePersonName(value)
@@ -173,14 +181,15 @@ const CATEGORY_SEARCH_CONFIGS: CategorySearchConfig[] = [
 
 const searchWebMentions = async (fullName: string, config: CategorySearchConfig): Promise<WebMention[]> => {
   try {
-    const nameTokens = tokenizeIdentity(fullName);
+    const cleanedName = sanitizeInvestigationName(fullName) || normalizePersonName(fullName);
+    const nameTokens = tokenizeIdentity(cleanedName);
     const searchIdentity = nameTokens.join(" ").trim() || fullName;
 
     // Build queries: use both quoted and unquoted name for broader coverage
     let queries: string[];
     if (config.category === "Epstein Files") {
       // Epstein searches need to be more aggressive — names may appear in various forms in documents
-      const lastName = nameTokens[nameTokens.length - 1] || fullName;
+      const lastName = nameTokens[nameTokens.length - 1] || nameTokens[0] || searchIdentity;
       queries = [
         `${searchIdentity} Epstein flight logs`,
         `${searchIdentity} Epstein black book`,
@@ -250,7 +259,8 @@ const searchWebMentions = async (fullName: string, config: CategorySearchConfig)
 
 // Direct Epstein document search — fetches known public sources and scans for name
 const searchEpsteinDocumentsDirect = async (fullName: string): Promise<WebMention[]> => {
-  const nameTokens = tokenizeIdentity(fullName);
+  const cleanedName = sanitizeInvestigationName(fullName) || normalizePersonName(fullName);
+  const nameTokens = tokenizeIdentity(cleanedName);
   if (!nameTokens.length) return [];
 
   const mentions: WebMention[] = [];
