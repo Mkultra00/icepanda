@@ -5,7 +5,7 @@ import { TopNav } from "../components/TopNav";
 import { ScanOverlay } from "../components/ScanOverlay";
 import {
   Github, AlertTriangle, CheckCircle2, ShieldAlert, ChevronDown, ChevronRight,
-  GitCommit, Users, Clock, Star, GitBranch, Code, ExternalLink
+  GitCommit, Users, Clock, Star, GitBranch, Code, ExternalLink, Copy
 } from "lucide-react";
 import { GitHubIntegrityReport } from "../hooks/useGitHubIntegrity";
 
