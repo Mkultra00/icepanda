@@ -193,15 +193,7 @@ const fetchLinkedInAnchor = async (normalizedUrl: string): Promise<LinkedInAncho
     if (!anchor.fullName) anchor.fullName = slugToNameFallback(normalizedUrl);
     if (!anchor.initials) anchor.initials = toInitials(anchor.fullName);
 
-    // If no profile image found from LinkedIn, search the web for their portrait
-    if (!anchor.profileImageUrl && anchor.fullName) {
-      console.log("No LinkedIn profile image found, searching web for portrait of:", anchor.fullName);
-      const portraitUrl = await searchForPortrait(anchor.fullName + (anchor.company ? ` ${anchor.company}` : ""));
-      if (portraitUrl) {
-        anchor.profileImageUrl = portraitUrl;
-        console.log("Found portrait via web search:", portraitUrl);
-      }
-    }
+    // Only use LinkedIn profile image — web search returns wrong-person photos
   } catch (error) {
     console.warn("Could not fetch LinkedIn anchor data:", error);
     anchor.fullName = anchor.fullName ?? slugToNameFallback(normalizedUrl);
