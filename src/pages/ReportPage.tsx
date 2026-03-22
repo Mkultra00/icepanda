@@ -70,6 +70,15 @@ const bioSections = [
   { key: "publicPresence", label: "Public Presence", icon: Mic, color: "#06B6D4" },
 ] as const;
 
+const psychSections = [
+  { key: "personalityTraits", label: "Personality Traits", icon: Brain, color: "#A855F7" },
+  { key: "motivations", label: "Motivations", icon: Target, color: "#F43F5E" },
+  { key: "communicationStyle", label: "Communication Style", icon: MessageCircle, color: "#3B82F6" },
+  { key: "leadershipStyle", label: "Leadership Style", icon: Crown, color: "#F59E0B" },
+  { key: "riskTolerance", label: "Risk Tolerance", icon: Gauge, color: "#10B981" },
+  { key: "potentialVulnerabilities", label: "Potential Vulnerabilities", icon: ShieldAlert, color: "#EF4444" },
+] as const;
+
 const ReportPage = () => {
   const navigate = useNavigate();
   const [report, setReport] = useState<ResearchReport | null>(null);
