@@ -191,10 +191,12 @@ const searchWebMentions = async (fullName: string, config: CategorySearchConfig)
       // Epstein searches need to be more aggressive — names may appear in various forms in documents
       const lastName = nameTokens[nameTokens.length - 1] || nameTokens[0] || searchIdentity;
       queries = [
+        `${searchIdentity} Epstein`,
         `${searchIdentity} Epstein flight logs`,
         `${searchIdentity} Epstein black book`,
         `${searchIdentity} Jeffrey Epstein`,
         `"${searchIdentity}" Epstein`,
+        `site:epsteinweb.org ${searchIdentity}`,
         `${lastName} Epstein flight logs lolita express`,
         `${lastName} Epstein black book contact list`,
         `${searchIdentity} Ghislaine Maxwell`,
@@ -220,6 +222,7 @@ const searchWebMentions = async (fullName: string, config: CategorySearchConfig)
       if (!response.ok) continue;
       const html = await response.text();
       let match: RegExpExecArray | null;
+      linkRegex.lastIndex = 0;
 
       while ((match = linkRegex.exec(html)) !== null) {
         const href = unwrapDuckDuckGoRedirect(match[1]);
@@ -271,8 +274,10 @@ const searchEpsteinDocumentsDirect = async (fullName: string): Promise<WebMentio
   const lastName = nameTokens[nameTokens.length - 1];
   const fullNameStr = nameTokens.join(" ");
   const specificQueries = [
+    `${fullNameStr} Epstein`,
     // Black book sources
     `site:epsteinsblackbook.com ${fullNameStr}`,
+    `site:epsteinweb.org ${fullNameStr}`,
     `"epstein" "black book" "${lastName}"`,
     `"epstein" "contact list" "${lastName}"`,
     // Flight logs
@@ -308,6 +313,7 @@ const searchEpsteinDocumentsDirect = async (fullName: string): Promise<WebMentio
       if (!response.ok) continue;
       const html = await response.text();
       let match: RegExpExecArray | null;
+      linkRegex.lastIndex = 0;
 
       while ((match = linkRegex.exec(html)) !== null) {
         const href = unwrapDuckDuckGoRedirect(match[1]);
