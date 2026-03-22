@@ -6,7 +6,8 @@ import { ScanOverlay } from "../components/ScanOverlay";
 import {
   Shield, AlertTriangle, Scale, FileText, Globe, Search,
   Download, Share2, Volume2, MessageSquare, ChevronDown, ChevronRight,
-  ExternalLink, MapPin, GraduationCap, Briefcase, Award, User, Mic
+  ExternalLink, MapPin, GraduationCap, Briefcase, Award, User, Mic,
+  Brain, Target, MessageCircle, Crown, Gauge, ShieldAlert
 } from "lucide-react";
 import { ResearchReport } from "../hooks/useResearch";
 
