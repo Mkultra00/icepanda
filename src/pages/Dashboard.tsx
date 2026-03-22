@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Camera, Github } from "lucide-react";
+import { Search, Camera, Github, Users } from "lucide-react";
 import { TopNav } from "../components/TopNav";
 import { ScanOverlay } from "../components/ScanOverlay";
 import { ActionCard } from "../components/ActionCard";
