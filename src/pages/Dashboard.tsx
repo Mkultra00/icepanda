@@ -6,16 +6,26 @@ import { ScanOverlay } from "../components/ScanOverlay";
 import { ActionCard } from "../components/ActionCard";
 import { RecentInvestigations } from "../components/RecentInvestigations";
 import { InvestigationModal } from "../components/InvestigationModal";
-import { AiddsLogo } from "../components/AiddsLogo";
+import { IcePandaLogo } from "../components/IcePandaLogo";
+import { useResearch } from "../hooks/useResearch";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 
 const Dashboard = () => {
   const [investigationModalOpen, setInvestigationModalOpen] = useState(false);
   const navigate = useNavigate();
+  const { runResearch, loading } = useResearch();
 
-  const handleStartInvestigation = (url: string) => {
-    setInvestigationModalOpen(false);
-    navigate("/investigation/demo");
+  const handleStartInvestigation = async (url: string, context: string, scopes: Record<string, boolean>) => {
+    try {
+      const report = await runResearch(url, context, scopes);
+      // Store report in sessionStorage for the report page
+      sessionStorage.setItem("ice_panda_report", JSON.stringify(report));
+      setInvestigationModalOpen(false);
+      navigate("/report/live");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Investigation failed");
+    }
   };
 
   return (
@@ -33,7 +43,7 @@ const Dashboard = () => {
             className="text-center mb-12"
           >
             <div className="flex justify-center mb-6">
-              <AiddsLogo size="large" />
+              <IcePandaLogo size="large" />
             </div>
             <p className="text-muted-foreground text-sm max-w-md mx-auto leading-relaxed">
               AI-powered due diligence. Paste a LinkedIn URL and uncover criminal records, 
@@ -78,6 +88,7 @@ const Dashboard = () => {
         open={investigationModalOpen}
         onClose={() => setInvestigationModalOpen(false)}
         onStart={handleStartInvestigation}
+        loading={loading}
       />
     </div>
   );
