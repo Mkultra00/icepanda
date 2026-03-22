@@ -62,6 +62,181 @@ const normalizePersonName = (name?: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+type WebMention = {
+  title: string;
+  snippet: string;
+  url: string;
+  reliability: "HIGH" | "MEDIUM" | "LOW";
+};
+
+const htmlEntityMap: Record<string, string> = {
+  "&amp;": "&",
+  "&quot;": '"',
+  "&#39;": "'",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&nbsp;": " ",
+};
+
+const stripHtml = (value: string) => value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+const decodeHtmlEntities = (value: string) =>
+  value.replace(/&(amp|quot|#39|lt|gt|nbsp);/g, (entity) => htmlEntityMap[entity] ?? entity);
+
+const unwrapDuckDuckGoRedirect = (href: string) => {
+  try {
+    const url = new URL(href, "https://duckduckgo.com");
+    const redirect = url.searchParams.get("uddg");
+    return redirect ? decodeURIComponent(redirect) : url.toString();
+  } catch {
+    return href;
+  }
+};
+
+const scoreMentionReliability = (url: string): "HIGH" | "MEDIUM" | "LOW" => {
+  const lowered = url.toLowerCase();
+  if (["justice.gov", "courtlistener.com", "documentcloud.org"].some((host) => lowered.includes(host))) return "HIGH";
+  if (["reuters.com", "apnews.com", "nytimes.com", "bbc.com", "wsj.com", "theguardian.com"].some((host) => lowered.includes(host))) return "MEDIUM";
+  return "LOW";
+};
+
+const NAME_STOPWORDS = new Set(["dr", "mr", "mrs", "ms", "prof", "professor", "sir"]);
+
+const tokenizeIdentity = (value: string) =>
+  normalizePersonName(value)
+    .split(" ")
+    .filter(Boolean)
+    .filter((token) => !NAME_STOPWORDS.has(token));
+
+const nameAppearsInText = (name: string, text: string) => {
+  const nameTokens = tokenizeIdentity(name);
+  const textTokens = tokenizeIdentity(text);
+  if (!nameTokens.length || !textTokens.length) return false;
+
+  const shared = nameTokens.filter((token) => textTokens.includes(token));
+  if (shared.length >= Math.min(2, nameTokens.length)) return true;
+
+  const nameLast = nameTokens[nameTokens.length - 1];
+  const firstInitial = nameTokens[0]?.[0];
+  return Boolean(
+    nameLast &&
+      firstInitial &&
+      textTokens.includes(nameLast) &&
+      textTokens.some((token) => token[0] === firstInitial),
+  );
+};
+
+const searchEpsteinWebMentions = async (fullName: string): Promise<WebMention[]> => {
+  try {
+    const searchIdentity = tokenizeIdentity(fullName).join(" ").trim() || fullName;
+    const queries = [
+      `"${searchIdentity}" Epstein`,
+      `"${searchIdentity}" "Epstein Files"`,
+      `${searchIdentity} Epstein flight logs`,
+    ];
+
+    const mentions: WebMention[] = [];
+    const seenUrls = new Set<string>();
+    const linkRegex = /<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+
+    for (const query of queries) {
+      const response = await fetch(`https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; ICE-Panda/1.0)" },
+      });
+
+      if (!response.ok) continue;
+      const html = await response.text();
+      let match: RegExpExecArray | null;
+
+      while ((match = linkRegex.exec(html)) !== null) {
+        const href = unwrapDuckDuckGoRedirect(match[1]);
+        const title = decodeHtmlEntities(stripHtml(match[2] ?? ""));
+        if (!href || !title || seenUrls.has(href)) continue;
+
+        const nearby = html.slice(match.index, match.index + 1500);
+        const snippetMatch = nearby.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>|<div[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/div>/i);
+        const snippetRaw = snippetMatch?.[1] ?? snippetMatch?.[2] ?? "";
+        const snippet = decodeHtmlEntities(stripHtml(snippetRaw));
+        const combined = `${title} ${snippet}`;
+        const normalizedCombined = normalizePersonName(combined);
+
+        if (!normalizedCombined.includes("epstein")) continue;
+        if (!nameAppearsInText(searchIdentity, combined)) continue;
+
+        mentions.push({
+          title,
+          snippet,
+          url: href,
+          reliability: scoreMentionReliability(href),
+        });
+        seenUrls.add(href);
+        if (mentions.length >= 5) break;
+      }
+
+      if (mentions.length > 0) break;
+    }
+
+    return mentions;
+  } catch (error) {
+    console.warn("Epstein web mention scan failed:", error);
+    return [];
+  }
+};
+
+const addEpsteinWebFallbackFindings = async (report: any, fullName?: string) => {
+  if (!fullName) return report;
+
+  const findings = Array.isArray(report.findings) ? report.findings : [];
+  const epsteinCategory = findings.find((item: any) => item?.category === "Epstein Files");
+  const existingItems = Array.isArray(epsteinCategory?.items) ? epsteinCategory.items : [];
+  if (existingItems.length > 0) return report;
+
+  const webMentions = await searchEpsteinWebMentions(fullName);
+  const sources = Array.isArray(report.sourcesConsulted) ? report.sourcesConsulted : [];
+  sources.push({
+    name: "Open Web Epstein Mention Scan",
+    reliability: webMentions.length > 0 ? "MEDIUM" : "LOW",
+    status: webMentions.length > 0 ? `Potential match(es) found for ${fullName}` : `No additional web matches for ${fullName}`,
+  });
+  report.sourcesConsulted = sources;
+
+  if (!webMentions.length) return report;
+
+  const mappedItems = webMentions.slice(0, 3).map((mention) => ({
+    title: `Potential Epstein-related mention: ${mention.title}`,
+    source: mention.url,
+    reliability: mention.reliability,
+    confidence: mention.reliability === "HIGH" ? 70 : mention.reliability === "MEDIUM" ? 55 : 40,
+    severity: "moderate",
+    summary: mention.snippet
+      ? `Open web result indicates a possible Epstein-related mention for ${fullName}. Snippet: ${mention.snippet}. Manual verification required.`
+      : `Open web result indicates a possible Epstein-related mention for ${fullName}. Manual verification required.`,
+  }));
+
+  if (epsteinCategory) {
+    epsteinCategory.items = mappedItems;
+  } else {
+    findings.push({ category: "Epstein Files", items: mappedItems });
+    report.findings = findings;
+  }
+
+  const identitySignals = Array.isArray(report.identitySignals) ? report.identitySignals : [];
+  identitySignals.unshift({
+    label: "Potential Epstein-file web mentions detected; manual verification recommended",
+    verified: false,
+  });
+  report.identitySignals = identitySignals;
+
+  report.riskScore = Math.max(normalizeScore(report.riskScore), 40);
+  if (report.riskLevel === "clear" || report.riskLevel === "low") {
+    report.riskLevel = "moderate";
+  }
+
+  const currentSummary = typeof report.executiveSummary === "string" ? report.executiveSummary : "";
+  report.executiveSummary = `${currentSummary} Open web scanning found potential Epstein-related mentions that were included for manual validation.`.trim();
+
+  return report;
+};
+
 const isIdentityAligned = (anchor: ProfileAnchor, reportedName?: string) => {
   if (!anchor.fullName || !reportedName) return true;
   const anchorTokens = normalizePersonName(anchor.fullName).split(" ").filter(Boolean);
@@ -463,13 +638,18 @@ serve(async (req) => {
     }
 
     const anchoredReport = enforceAnchorOnReport(report, anchor);
+    const enrichedReport = await addEpsteinWebFallbackFindings(
+      anchoredReport,
+      anchor.fullName ?? anchoredReport?.target?.fullName,
+    );
+
     if (hasImage && !identityAligned) {
-      return new Response(JSON.stringify(applyIdentityMismatchSafeguards(anchoredReport, anchor)), {
+      return new Response(JSON.stringify(applyIdentityMismatchSafeguards(enrichedReport, anchor)), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(JSON.stringify(anchoredReport), {
+    return new Response(JSON.stringify(enrichedReport), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
