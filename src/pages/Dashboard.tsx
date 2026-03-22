@@ -6,15 +6,19 @@ import { ScanOverlay } from "../components/ScanOverlay";
 import { ActionCard } from "../components/ActionCard";
 import { RecentInvestigations } from "../components/RecentInvestigations";
 import { InvestigationModal } from "../components/InvestigationModal";
+import { GitHubIntegrityModal } from "../components/GitHubIntegrityModal";
 import { IcePandaLogo } from "../components/IcePandaLogo";
 import { useResearch } from "../hooks/useResearch";
+import { useGitHubIntegrity } from "../hooks/useGitHubIntegrity";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 
 const Dashboard = () => {
   const [investigationModalOpen, setInvestigationModalOpen] = useState(false);
+  const [githubModalOpen, setGithubModalOpen] = useState(false);
   const navigate = useNavigate();
   const { runResearch, loading } = useResearch();
+  const { analyzeRepo, loading: githubLoading } = useGitHubIntegrity();
 
   const handleStartInvestigation = async (imageBase64: string | null, context: string, scopes: Record<string, boolean>) => {
     try {
@@ -24,6 +28,17 @@ const Dashboard = () => {
       navigate("/report/live");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Investigation failed");
+    }
+  };
+
+  const handleGitHubAnalysis = async (repoUrl: string) => {
+    try {
+      const report = await analyzeRepo(repoUrl);
+      sessionStorage.setItem("ice_panda_github_report", JSON.stringify(report));
+      setGithubModalOpen(false);
+      navigate("/github-report");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "GitHub analysis failed");
     }
   };
 
@@ -73,7 +88,7 @@ const Dashboard = () => {
               title="GitHub Integrity"
               description="Analyze a repo's commit patterns for hackathon authenticity"
               accentColor="#10B981"
-              onClick={() => {}}
+              onClick={() => setGithubModalOpen(true)}
               delay={0.35}
             />
           </div>
@@ -88,6 +103,13 @@ const Dashboard = () => {
         onClose={() => setInvestigationModalOpen(false)}
         onStart={handleStartInvestigation}
         loading={loading}
+      />
+
+      <GitHubIntegrityModal
+        open={githubModalOpen}
+        onClose={() => setGithubModalOpen(false)}
+        onStart={handleGitHubAnalysis}
+        loading={githubLoading}
       />
     </div>
   );
