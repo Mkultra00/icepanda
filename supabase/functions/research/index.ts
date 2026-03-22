@@ -474,7 +474,7 @@ const searchEpsteinDocumentsDirect = async (fullName: string): Promise<WebMentio
         const nearby = html.slice(match.index, match.index + 1500);
         const snippetMatch = nearby.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>|<div[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/div>/i);
         const snippet = decodeHtmlEntities(stripHtml(snippetMatch?.[1] ?? snippetMatch?.[2] ?? ""));
-        const combined = normalizePersonName(\`\${title} \${snippet}\`);
+        const combined = normalizePersonName(`${title} ${snippet}`);
         const hasNameToken = nameTokens.some((t) => t.length >= 3 && combined.includes(t));
         const hasEpstein = combined.includes("epstein");
         if (!hasNameToken || !hasEpstein) continue;
