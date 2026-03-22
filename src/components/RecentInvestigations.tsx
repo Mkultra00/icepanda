@@ -10,12 +10,7 @@ interface Investigation {
   confidence: number;
 }
 
-const mockInvestigations: Investigation[] = [
-  { id: "1", name: "Marcus R. Whitfield", date: "22 Mar 2026", riskLevel: "high", status: "complete", confidence: 94 },
-  { id: "2", name: "Elena Vasquez-Torres", date: "21 Mar 2026", riskLevel: "low", status: "complete", confidence: 88 },
-  { id: "3", name: "David Chen", date: "21 Mar 2026", riskLevel: "moderate", status: "complete", confidence: 76 },
-  { id: "4", name: "Sarah K. Mitchell", date: "20 Mar 2026", riskLevel: "clear", status: "complete", confidence: 97 },
-];
+const mockInvestigations: Investigation[] = [];
 
 const riskBadge: Record<string, string> = {
   critical: "badge-critical",
