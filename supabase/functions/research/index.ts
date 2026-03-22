@@ -109,6 +109,7 @@ const enforceAnchorOnReport = (report: any, anchor: LinkedInAnchor) => {
   if (anchor.title) report.target.title = anchor.title;
   if (anchor.company) report.target.company = anchor.company;
   if (anchor.location) report.target.location = anchor.location;
+  if (anchor.profileImageUrl) report.target.profileImageUrl = anchor.profileImageUrl;
   if (!report.target.title) report.target.title = "LinkedIn Profile";
   if (!report.target.company) report.target.company = "Unspecified";
   if (!report.target.location) report.target.location = "Unknown";
