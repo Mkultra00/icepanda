@@ -381,7 +381,49 @@ const addWebFallbackFindings = async (report: any, fullName?: string) => {
     }
   }
 
-  report.findings = findings;
+  // DEDICATED Epstein document deep search — runs in addition to the generic web search above
+  {
+    const epsteinCategory = findings.find((f: any) => f?.category === "Epstein Files");
+    const epsteinItems = Array.isArray(epsteinCategory?.items) ? epsteinCategory.items : [];
+    const epsteinUrls = new Set(epsteinItems.map((item: any) => item.source).filter(Boolean));
+
+    const directEpsteinMentions = await searchEpsteinDocumentsDirect(fullName);
+    const newDirectMentions = directEpsteinMentions.filter((m) => !epsteinUrls.has(m.url));
+
+    if (newDirectMentions.length > 0) {
+      anyMentionsFound = true;
+      if (!categoriesWithMentions.includes("Epstein Files")) categoriesWithMentions.push("Epstein Files");
+
+      const mappedDirect = newDirectMentions.slice(0, 5).map((mention) => ({
+        title: `Document Search: ${mention.title}`,
+        source: mention.url,
+        reliability: mention.reliability,
+        confidence: mention.reliability === "HIGH" ? 75 : mention.reliability === "MEDIUM" ? 60 : 45,
+        severity: "moderate" as const,
+        summary: mention.snippet
+          ? `Direct Epstein document search found a match for ${fullName}. ${mention.snippet}. ⚠️ Note: Web search may return results for different people with a similar name — manual verification required.`
+          : `Direct Epstein document search found a potential reference to ${fullName}. ⚠️ Note: Web search may return results for different people with a similar name — manual verification required.`,
+      }));
+
+      if (epsteinCategory) {
+        epsteinCategory.items = [...epsteinItems, ...mappedDirect];
+      } else {
+        findings.push({ category: "Epstein Files", items: mappedDirect });
+      }
+
+      sources.push({
+        name: "Epstein Document Direct Search",
+        reliability: "MEDIUM",
+        status: `${newDirectMentions.length} potential match(es) found in Epstein documents for ${fullName}`,
+      });
+    } else {
+      sources.push({
+        name: "Epstein Document Direct Search",
+        reliability: "LOW",
+        status: `No direct Epstein document matches found for ${fullName}`,
+      });
+    }
+  }
   report.sourcesConsulted = sources;
 
   if (anyMentionsFound) {
