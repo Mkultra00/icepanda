@@ -12,7 +12,7 @@ export const IcePandaLogo = ({ size = "default" }: { size?: "default" | "large" 
       />
       <div className="text-center">
         <h1 className={`${isLarge ? "text-2xl" : "text-lg"} font-bold tracking-tight text-foreground`}>
-          I.C.E Panda
+          I.C.E. Panda
         </h1>
         {isLarge && (
           <p className="text-[11px] font-mono text-muted-foreground tracking-widest uppercase">
