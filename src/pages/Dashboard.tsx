@@ -108,6 +108,36 @@ const Dashboard = () => {
             />
           </div>
 
+          {/* Team */}
+          <motion.div
+            initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            transition={{ duration: 0.6, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="mb-12"
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Users className="w-4 h-4 text-muted-foreground" />
+              <h2 className="text-sm font-medium text-muted-foreground tracking-wide uppercase">Team</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {[
+                { name: "Frank Yu", initials: "FY", color: "bg-blue-500/15 text-blue-400" },
+                { name: "Forrest Pan", initials: "FP", color: "bg-emerald-500/15 text-emerald-400" },
+                { name: "Jion Thakur", initials: "JT", color: "bg-amber-500/15 text-amber-400" },
+              ].map((member) => (
+                <div
+                  key={member.name}
+                  className="flex items-center gap-3 rounded-lg border border-border/50 bg-card/50 px-4 py-3"
+                >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${member.color}`}>
+                    {member.initials}
+                  </div>
+                  <span className="text-sm font-medium text-foreground">{member.name}</span>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
           {/* Recent */}
           <RecentInvestigations />
         </div>
