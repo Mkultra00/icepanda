@@ -106,6 +106,13 @@ const fetchLinkedInAnchor = async (normalizedUrl: string): Promise<LinkedInAncho
   return anchor;
 };
 
+const normalizeScore = (value: unknown) => {
+  const num = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(num)) return 0;
+  const normalized = num <= 1 ? num * 100 : num;
+  return Math.max(0, Math.min(100, Math.round(normalized)));
+};
+
 const enforceAnchorOnReport = (report: any, anchor: LinkedInAnchor) => {
   report.target = report.target ?? {};
 
@@ -118,6 +125,9 @@ const enforceAnchorOnReport = (report: any, anchor: LinkedInAnchor) => {
   if (!report.target.title) report.target.title = "LinkedIn Profile";
   if (!report.target.company) report.target.company = "Unspecified";
   if (!report.target.location) report.target.location = "Unknown";
+
+  report.confidenceScore = normalizeScore(report.confidenceScore);
+  report.riskScore = normalizeScore(report.riskScore);
 
   const identitySignals = Array.isArray(report.identitySignals) ? report.identitySignals : [];
   identitySignals.unshift({ label: `LinkedIn URL anchored: ${anchor.normalizedUrl}`, verified: true });
