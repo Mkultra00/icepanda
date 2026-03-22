@@ -7,7 +7,7 @@ export const IcePandaLogo = ({ size = "default" }: { size?: "default" | "large" 
       <img
         src={pandaAvatar}
         alt="I.C.E Panda"
-        className={`${isLarge ? "w-14 h-14" : "w-9 h-9"} rounded-lg object-cover`}
+        className={`${isLarge ? "w-40 h-40" : "w-24 h-24"} rounded-lg object-cover`}
       />
       <div>
         <h1 className={`${isLarge ? "text-2xl" : "text-lg"} font-bold tracking-tight text-foreground`}>
