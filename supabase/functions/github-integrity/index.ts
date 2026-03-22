@@ -57,10 +57,16 @@ const fetchGitHubData = async (owner: string, repo: string) => {
 
   // Hour-of-day distribution
   const hourBuckets: Record<number, number> = {};
+  const uniqueDays = new Set<string>();
   sortedDates.forEach((t: number) => {
-    const h = new Date(t).getUTCHours();
+    const d = new Date(t);
+    const h = d.getUTCHours();
     hourBuckets[h] = (hourBuckets[h] || 0) + 1;
+    uniqueDays.add(d.toISOString().slice(0, 10));
   });
+
+  const uniqueDayCount = uniqueDays.size;
+  const allSameDay = uniqueDayCount <= 1 && sortedDates.length > 1;
 
   return {
     repo: {
@@ -83,6 +89,9 @@ const fetchGitHubData = async (owner: string, repo: string) => {
       avgGapMinutes,
       hourDistribution: hourBuckets,
       gaps: gaps.slice(0, 20),
+      uniqueDayCount,
+      allCommitsSameDay: allSameDay,
+      uniqueDays: [...uniqueDays].sort(),
     },
     contributors: (Array.isArray(contributors) ? contributors : []).map((c: any) => ({
       login: c.login,
