@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Search, Camera, ChevronRight } from "lucide-react";
+import { X, Search, ChevronRight, Loader2 } from "lucide-react";
 
 interface InvestigationModalProps {
   open: boolean;
   onClose: () => void;
-  onStart: (url: string) => void;
+  onStart: (url: string, context: string, scopes: Record<string, boolean>) => void;
+  loading?: boolean;
 }
 
 const scopeOptions = [
@@ -17,7 +18,7 @@ const scopeOptions = [
   { key: "epstein", label: "Epstein Files", defaultOn: true },
 ];
 
-export const InvestigationModal = ({ open, onClose, onStart }: InvestigationModalProps) => {
+export const InvestigationModal = ({ open, onClose, onStart, loading }: InvestigationModalProps) => {
   const [url, setUrl] = useState("");
   const [context, setContext] = useState("");
   const [scopes, setScopes] = useState<Record<string, boolean>>(
@@ -49,6 +50,7 @@ export const InvestigationModal = ({ open, onClose, onStart }: InvestigationModa
           >
             <button
               onClick={onClose}
+              disabled={loading}
               className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/5 transition-colors"
             >
               <X className="w-4 h-4 text-muted-foreground" />
@@ -74,7 +76,8 @@ export const InvestigationModal = ({ open, onClose, onStart }: InvestigationModa
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://linkedin.com/in/username"
-                className="w-full bg-secondary/50 border border-border rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 font-mono focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all"
+                disabled={loading}
+                className="w-full bg-secondary/50 border border-border rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 font-mono focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all disabled:opacity-50"
               />
             </div>
 
@@ -88,7 +91,8 @@ export const InvestigationModal = ({ open, onClose, onStart }: InvestigationModa
                 onChange={(e) => setContext(e.target.value)}
                 placeholder="Known to have worked in finance in NYC 2015–2020..."
                 rows={2}
-                className="w-full bg-secondary/50 border border-border rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all resize-none"
+                disabled={loading}
+                className="w-full bg-secondary/50 border border-border rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all resize-none disabled:opacity-50"
               />
             </div>
 
@@ -102,11 +106,12 @@ export const InvestigationModal = ({ open, onClose, onStart }: InvestigationModa
                   <button
                     key={opt.key}
                     onClick={() => toggleScope(opt.key)}
+                    disabled={loading}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
                       scopes[opt.key]
                         ? "bg-primary/10 border border-primary/25 text-primary"
                         : "bg-secondary/30 border border-border text-muted-foreground"
-                    }`}
+                    } disabled:opacity-50`}
                   >
                     <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all ${
                       scopes[opt.key] ? "bg-primary border-primary" : "border-muted-foreground/40"
@@ -125,16 +130,25 @@ export const InvestigationModal = ({ open, onClose, onStart }: InvestigationModa
 
             {/* Submit */}
             <button
-              onClick={() => isValid && onStart(url)}
-              disabled={!isValid}
+              onClick={() => isValid && onStart(url, context, scopes)}
+              disabled={!isValid || loading}
               className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold transition-all active:scale-[0.97] ${
-                isValid
+                isValid && !loading
                   ? "bg-primary text-primary-foreground glow-sm hover:glow-md"
                   : "bg-secondary text-muted-foreground cursor-not-allowed"
               }`}
             >
-              Begin Investigation
-              <ChevronRight className="w-4 h-4" />
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Researching...
+                </>
+              ) : (
+                <>
+                  Begin Investigation
+                  <ChevronRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </motion.div>
         </motion.div>

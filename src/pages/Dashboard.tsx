@@ -7,15 +7,25 @@ import { ActionCard } from "../components/ActionCard";
 import { RecentInvestigations } from "../components/RecentInvestigations";
 import { InvestigationModal } from "../components/InvestigationModal";
 import { IcePandaLogo } from "../components/IcePandaLogo";
+import { useResearch } from "../hooks/useResearch";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 
 const Dashboard = () => {
   const [investigationModalOpen, setInvestigationModalOpen] = useState(false);
   const navigate = useNavigate();
+  const { runResearch, loading } = useResearch();
 
-  const handleStartInvestigation = (url: string) => {
-    setInvestigationModalOpen(false);
-    navigate("/investigation/demo");
+  const handleStartInvestigation = async (url: string, context: string, scopes: Record<string, boolean>) => {
+    try {
+      const report = await runResearch(url, context, scopes);
+      // Store report in sessionStorage for the report page
+      sessionStorage.setItem("ice_panda_report", JSON.stringify(report));
+      setInvestigationModalOpen(false);
+      navigate("/report/live");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Investigation failed");
+    }
   };
 
   return (
@@ -78,6 +88,7 @@ const Dashboard = () => {
         open={investigationModalOpen}
         onClose={() => setInvestigationModalOpen(false)}
         onStart={handleStartInvestigation}
+        loading={loading}
       />
     </div>
   );
