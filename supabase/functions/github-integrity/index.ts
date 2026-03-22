@@ -160,6 +160,7 @@ ANALYSIS CRITERIA:
 5. **Development Flow**: Does the commit history show iterative development (builds, fixes, refactors) or was code dumped in large chunks?
 6. **Red Flags**: Force pushes, squashed history hiding prior work, weekend-only commits during "work" claims, timezone inconsistencies, suspiciously perfect commit cadence, ALL commits on same day.
 7. **Positive Signals**: Bug fixes after features, README updates, incremental progress, review-style improvements, commits spread across many days.
+8. **Similar Repositories**: Compare the target repo against similar repositories found on GitHub. Assess how similar they are in terms of name, description, language, structure, and purpose. Assign a similarity score (0-100) to each. High similarity to well-known projects could indicate cloning/forking without attribution. Note if the target appears to be a derivative or copy.
 
 Be direct and analytical. If the repo looks suspicious, say so clearly with evidence.`;
 
