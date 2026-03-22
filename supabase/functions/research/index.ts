@@ -426,6 +426,30 @@ const requestStructuredReport = async ({
   return JSON.parse(toolCall.function.arguments);
 };
 
+const buildContextOnlySystemPrompt = (context: string) => `You are I.C.E. Panda, an expert due diligence and intelligence research AI.
+
+You are conducting a web-based investigation using ONLY the context provided below. There is no LinkedIn profile available.
+
+TARGET CONTEXT:
+${context}
+
+INSTRUCTIONS:
+1) Identify the most likely person matching the context description.
+2) Research them using publicly available information.
+3) Write a comprehensive biography and due diligence report.
+4) If you cannot confidently identify the person, state that in the executive summary and lower the confidence score.
+5) For biography sections where no information is available, write "No public information available."
+
+Return ONLY structured report JSON via tool call.`;
+
+const buildContextOnlyUserPrompt = (context: string, scopeList: string) => `Investigate this person based on the following description and create a comprehensive life briefing report:
+
+Description: ${context}
+
+Research scope: ${scopeList || "all categories"}
+
+Produce a comprehensive due diligence report with a detailed biographical briefing and risk findings based on publicly available information.`;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -434,36 +458,77 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const normalizedLinkedInUrl = normalizeLinkedInUrl(linkedinUrl);
-    const anchor = await fetchLinkedInAnchor(normalizedLinkedInUrl);
-
     const scopeList = Object.entries(scopes || {}).filter(([_, v]) => v).map(([k]) => k).join(", ");
-    const userPrompt = buildUserPrompt(normalizedLinkedInUrl, context, scopeList);
+    const hasLinkedIn = linkedinUrl && linkedinUrl.includes("linkedin.com/in/");
 
-    let report = await requestStructuredReport({
-      LOVABLE_API_KEY,
-      systemPrompt: buildSystemPrompt(anchor, false),
-      userPrompt,
-    });
+    let anchoredReport;
 
-    let identityAligned = isIdentityAligned(anchor, report?.target?.fullName);
-    if (!identityAligned) {
-      console.warn("Identity mismatch detected, retrying with stricter prompt", {
-        anchorName: anchor.fullName,
-        modelName: report?.target?.fullName,
-      });
+    if (hasLinkedIn) {
+      // LinkedIn-anchored research
+      const normalizedLinkedInUrl = normalizeLinkedInUrl(linkedinUrl);
+      const anchor = await fetchLinkedInAnchor(normalizedLinkedInUrl);
+      const userPrompt = buildUserPrompt(normalizedLinkedInUrl, context, scopeList);
 
-      report = await requestStructuredReport({
+      let report = await requestStructuredReport({
         LOVABLE_API_KEY,
-        systemPrompt: buildSystemPrompt(anchor, true),
+        systemPrompt: buildSystemPrompt(anchor, false),
         userPrompt,
       });
-      identityAligned = isIdentityAligned(anchor, report?.target?.fullName);
-    }
 
-    let anchoredReport = enforceAnchorOnReport(report, anchor);
-    if (!identityAligned) {
-      anchoredReport = applyIdentityMismatchSafeguards(anchoredReport, anchor);
+      let identityAligned = isIdentityAligned(anchor, report?.target?.fullName);
+      if (!identityAligned) {
+        console.warn("Identity mismatch detected, retrying with stricter prompt", {
+          anchorName: anchor.fullName,
+          modelName: report?.target?.fullName,
+        });
+
+        report = await requestStructuredReport({
+          LOVABLE_API_KEY,
+          systemPrompt: buildSystemPrompt(anchor, true),
+          userPrompt,
+        });
+        identityAligned = isIdentityAligned(anchor, report?.target?.fullName);
+      }
+
+      anchoredReport = enforceAnchorOnReport(report, anchor);
+      if (!identityAligned) {
+        anchoredReport = applyIdentityMismatchSafeguards(anchoredReport, anchor);
+      }
+    } else {
+      // Context-only web research
+      if (!context || context.trim().length < 5) {
+        throw new Error("Please provide either a LinkedIn URL or a detailed description of the person to investigate.");
+      }
+
+      const report = await requestStructuredReport({
+        LOVABLE_API_KEY,
+        systemPrompt: buildContextOnlySystemPrompt(context),
+        userPrompt: buildContextOnlyUserPrompt(context, scopeList),
+      });
+
+      // Normalize scores and ensure required categories
+      report.confidenceScore = normalizeScore(report.confidenceScore);
+      report.riskScore = normalizeScore(report.riskScore);
+      report.target = report.target ?? {};
+      report.target.initials = toInitials(report.target.fullName);
+      report.biography = report.biography ?? {};
+
+      const existingFindings = Array.isArray(report.findings) ? report.findings : [];
+      const byCategory = new Map(existingFindings.map((f: any) => [f.category, f]));
+      report.findings = REQUIRED_CATEGORIES.map((category) => {
+        const current = byCategory.get(category) as { items?: unknown[] } | undefined;
+        return { category, items: Array.isArray(current?.items) ? current.items : [] };
+      });
+
+      const sources = Array.isArray(report.sourcesConsulted) ? report.sourcesConsulted : [];
+      sources.unshift({ name: "Web Research (Context-Based)", reliability: "MEDIUM", status: "No LinkedIn anchor available" });
+      report.sourcesConsulted = sources;
+
+      const signals = Array.isArray(report.identitySignals) ? report.identitySignals : [];
+      signals.unshift({ label: "Context-only investigation — no LinkedIn profile anchoring", verified: false });
+      report.identitySignals = signals;
+
+      anchoredReport = report;
     }
 
     return new Response(JSON.stringify(anchoredReport), {
