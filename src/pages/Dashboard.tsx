@@ -7,6 +7,7 @@ import { ActionCard } from "../components/ActionCard";
 import { RecentInvestigations } from "../components/RecentInvestigations";
 import { InvestigationModal } from "../components/InvestigationModal";
 import { GitHubIntegrityModal } from "../components/GitHubIntegrityModal";
+import { PhotoIdentifyModal } from "../components/PhotoIdentifyModal";
 import { IcePandaLogo } from "../components/IcePandaLogo";
 import { useResearch } from "../hooks/useResearch";
 import { useGitHubIntegrity } from "../hooks/useGitHubIntegrity";
