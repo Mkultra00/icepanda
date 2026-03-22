@@ -34,6 +34,18 @@ const Dashboard = () => {
     }
   };
 
+  const handlePhotoIdentify = async (imageBase64: string, context: string) => {
+    try {
+      const scopes = { criminal: true, sex_offender: true, litigation: true, fraud: true, sanctions: true, epstein: true };
+      const report = await runPhotoResearch(imageBase64, context || "Identify this person from the photo and investigate.", scopes);
+      sessionStorage.setItem("ice_panda_report", JSON.stringify(report));
+      setPhotoModalOpen(false);
+      navigate("/report/live");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Photo identification failed");
+    }
+  };
+
   const handleGitHubAnalysis = async (repoUrl: string) => {
     try {
       const report = await analyzeRepo(repoUrl);
