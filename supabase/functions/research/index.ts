@@ -59,6 +59,26 @@ const slugToNameFallback = (normalizedUrl: string) => {
   return decodeURIComponent(slug).replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).trim();
 };
 
+const looksLikePersonName = (value?: string) => {
+  if (!value) return false;
+  const cleaned = value.trim();
+  if (!cleaned || cleaned.length < 3 || cleaned.length > 60) return false;
+  if (/\d/.test(cleaned) || /[:|@]/.test(cleaned)) return false;
+
+  const disallowed = ["linkedin", "future", "profile", "search", "people", "contact", "info", "jobs"];
+  const lower = cleaned.toLowerCase();
+  if (disallowed.some((word) => lower.includes(word))) return false;
+
+  const tokens = cleaned.split(/\s+/).filter(Boolean);
+  if (tokens.length < 2 || tokens.length > 5) return false;
+
+  const alphaTokens = tokens.filter((t) => /^[a-zA-Z'’.-]+$/.test(t));
+  if (alphaTokens.length < 2) return false;
+
+  const capitalizedTokens = tokens.filter((t) => /^[A-Z][a-zA-Z'’.-]+$/.test(t));
+  return capitalizedTokens.length >= 2;
+};
+
 const createProfileSnapshot = (markdown: string) => {
   const cleaned = markdown
     .split("\n")
@@ -132,14 +152,18 @@ const fetchLinkedInAnchor = async (normalizedUrl: string): Promise<LinkedInAncho
     const titleLine = titleLineMatch?.[1]?.trim();
     if (titleLine) {
       const cleaned = titleLine.replace(/\s*\|\s*LinkedIn\s*$/i, "").trim();
-      const [possibleName, ...rest] = cleaned.split(" - ");
-      if (possibleName?.trim()) anchor.fullName = possibleName.trim();
-      if (rest.length > 0) anchor.title = rest.join(" - ").trim();
+      const segments = cleaned.split(" - ").map((segment) => segment.trim()).filter(Boolean);
+      const possibleName = segments.find((segment) => looksLikePersonName(segment));
+      if (possibleName) {
+        anchor.fullName = possibleName;
+        const titleSegments = segments.filter((segment) => segment !== possibleName);
+        if (titleSegments.length > 0) anchor.title = titleSegments.join(" - ").trim();
+      }
     }
 
     const h1Matches = [...markdown.matchAll(/^#\s+(.+)$/gm)].map((m) => m[1].trim());
-    const firstPlainNameHeading = h1Matches.find((h) => h && !h.includes("| LinkedIn") && h.split(" ").length <= 5);
-    if (!anchor.fullName && firstPlainNameHeading) anchor.fullName = firstPlainNameHeading;
+    const firstPlainNameHeading = h1Matches.find((h) => looksLikePersonName(h));
+    if (firstPlainNameHeading) anchor.fullName = firstPlainNameHeading;
 
     const locationMatch = markdown.match(/^###\s+(.+?)\s+Contact Info\s*$/m);
     if (locationMatch?.[1]) anchor.location = locationMatch[1].trim();
