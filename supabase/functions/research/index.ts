@@ -217,7 +217,20 @@ Sections:
 - publicPresence: Media, speaking, social media
 
 DUE DILIGENCE INSTRUCTIONS:
-Produce risk findings across all categories. Be factual. If no adverse findings exist, return empty items arrays.
+You MUST actively search for and report ANY negative, adverse, or controversial information about this person. This includes but is not limited to:
+- Criminal charges, arrests, convictions, or investigations
+- Lawsuits (plaintiff or defendant), regulatory actions, or legal disputes
+- Fraud allegations, financial misconduct, bankruptcy filings
+- Sanctions, watchlist appearances, export control violations
+- Sexual misconduct allegations or registry appearances
+- Connections to controversial individuals or organizations (including Epstein files)
+- Negative press coverage, public controversies, scandals
+- Workplace complaints, discrimination suits, whistleblower reports
+- Regulatory fines, compliance violations, enforcement actions
+- Questionable business practices, failed ventures with investor losses
+- Social media controversies, inflammatory public statements
+
+Do NOT shy away from reporting negative findings. The purpose of this report is risk assessment — omitting adverse information defeats the purpose. If genuinely no adverse findings exist for a category, return an empty items array, but err on the side of including borderline findings with appropriate confidence scores rather than omitting them.
 
 Return ONLY structured report JSON via tool call.`;
 
