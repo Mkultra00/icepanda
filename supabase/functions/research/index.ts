@@ -225,6 +225,19 @@ Sections:
 - personalLife: Public interests, philanthropy
 - publicPresence: Media, speaking, social media
 
+PSYCHOLOGICAL PROFILE INSTRUCTIONS:
+Build a psychological profile based on observable behaviors, public statements, career choices, communication patterns, and any available interviews or media appearances. This is an ANALYTICAL ASSESSMENT, not a clinical diagnosis. Base it on evidence from the profile and public information.
+
+Sections:
+- personalityTraits: Observable personality characteristics (e.g., analytical, charismatic, detail-oriented, risk-taking). Cite behavioral evidence.
+- motivations: What appears to drive this person professionally and personally. Infer from career moves, public statements, philanthropic choices.
+- communicationStyle: How they communicate publicly — formal vs casual, data-driven vs narrative, confrontational vs diplomatic. Base on public appearances, writing, social media.
+- leadershipStyle: Their approach to leadership and management based on career trajectory, team dynamics, organizational choices.
+- riskTolerance: Assessment of their appetite for risk based on career moves, business decisions, investments, public positions taken.
+- potentialVulnerabilities: Psychological or behavioral patterns that could represent risks — ego-driven decisions, conflict avoidance, overconfidence, susceptibility to flattery, etc. Be candid but evidence-based.
+
+If insufficient information exists for a section, write "Insufficient public data for assessment."
+
 DUE DILIGENCE INSTRUCTIONS:
 You MUST actively search for and report ANY negative, adverse, or controversial information about this person. This includes but is not limited to:
 - Criminal charges, arrests, convictions, or investigations
