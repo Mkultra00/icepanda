@@ -376,14 +376,10 @@ const requestStructuredReport = async ({
 
   if (!response.ok) {
     if (response.status === 429) {
-      return new Response(JSON.stringify({ error: "Rate limited. Please try again in a moment." }), {
-        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      throw new Error("RATE_LIMITED");
     }
     if (response.status === 402) {
-      return new Response(JSON.stringify({ error: "AI credits exhausted. Please add funds in Settings." }), {
-        status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      throw new Error("AI_CREDITS_EXHAUSTED");
     }
     const errText = await response.text();
     console.error("AI gateway error:", response.status, errText);
@@ -441,6 +437,16 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
+    if (e instanceof Error && e.message === "RATE_LIMITED") {
+      return new Response(JSON.stringify({ error: "Rate limited. Please try again in a moment." }), {
+        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (e instanceof Error && e.message === "AI_CREDITS_EXHAUSTED") {
+      return new Response(JSON.stringify({ error: "AI credits exhausted. Please add funds in Settings." }), {
+        status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     console.error("Research error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
