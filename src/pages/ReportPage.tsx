@@ -303,7 +303,11 @@ const ReportPage = () => {
                             <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono">
                               <span className="flex items-center gap-1 text-muted-foreground">
                                 <ExternalLink className="w-3 h-3" />
-                                <span className={reliabilityColor[item.reliability]}>{item.source}</span>
+                                {item.source.startsWith("http") ? (
+                                  <a href={item.source} target="_blank" rel="noopener noreferrer" className={`${reliabilityColor[item.reliability]} hover:underline`}>{item.source}</a>
+                                ) : (
+                                  <span className={reliabilityColor[item.reliability]}>{item.source}</span>
+                                )}
                                 <span className="text-muted-foreground/50">({item.reliability})</span>
                               </span>
                               {item.jurisdiction && (
