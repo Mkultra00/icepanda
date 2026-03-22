@@ -145,17 +145,17 @@
 }
 
 @keyframes arm-wave-left {
-  0%, 100% { transform: rotate(0deg); }
-  20% { transform: rotate(10deg); }
-  40% { transform: rotate(-6deg); }
+  0%, 100% { transform: rotate(1deg); }
+  20% { transform: rotate(9deg); }
+  40% { transform: rotate(-2deg); }
   60% { transform: rotate(8deg); }
-  80% { transform: rotate(-4deg); }
+  80% { transform: rotate(0deg); }
 }
 
 @keyframes arm-wave-right {
-  0%, 100% { transform: rotate(0deg); }
-  20% { transform: rotate(-10deg); }
-  40% { transform: rotate(6deg); }
+  0%, 100% { transform: rotate(-1deg); }
+  20% { transform: rotate(-9deg); }
+  40% { transform: rotate(2deg); }
   60% { transform: rotate(-8deg); }
-  80% { transform: rotate(4deg); }
+  80% { transform: rotate(0deg); }
 }
