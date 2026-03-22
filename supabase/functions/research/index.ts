@@ -127,42 +127,52 @@ const nameAppearsInText = (name: string, text: string) => {
 
 const searchEpsteinWebMentions = async (fullName: string): Promise<WebMention[]> => {
   try {
-    const query = `"${fullName}" Epstein files OR Epstein flight logs OR Epstein black book`;
-    const response = await fetch(`https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; ICE-Panda/1.0)" },
-    });
+    const searchIdentity = tokenizeIdentity(fullName).join(" ").trim() || fullName;
+    const queries = [
+      `"${searchIdentity}" Epstein`,
+      `"${searchIdentity}" "Epstein Files"`,
+      `${searchIdentity} Epstein flight logs`,
+    ];
 
-    if (!response.ok) return [];
-    const html = await response.text();
     const mentions: WebMention[] = [];
     const seenUrls = new Set<string>();
-
     const linkRegex = /<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
-    let match: RegExpExecArray | null;
 
-    while ((match = linkRegex.exec(html)) !== null) {
-      const href = unwrapDuckDuckGoRedirect(match[1]);
-      const title = decodeHtmlEntities(stripHtml(match[2] ?? ""));
-      if (!href || !title || seenUrls.has(href)) continue;
-
-      const nearby = html.slice(match.index, match.index + 1500);
-      const snippetMatch = nearby.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>|<div[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/div>/i);
-      const snippetRaw = snippetMatch?.[1] ?? snippetMatch?.[2] ?? "";
-      const snippet = decodeHtmlEntities(stripHtml(snippetRaw));
-      const combined = `${title} ${snippet}`;
-      const normalizedCombined = normalizePersonName(combined);
-
-      if (!normalizedCombined.includes("epstein")) continue;
-      if (!nameAppearsInText(fullName, combined)) continue;
-
-      mentions.push({
-        title,
-        snippet,
-        url: href,
-        reliability: scoreMentionReliability(href),
+    for (const query of queries) {
+      const response = await fetch(`https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; ICE-Panda/1.0)" },
       });
-      seenUrls.add(href);
-      if (mentions.length >= 5) break;
+
+      if (!response.ok) continue;
+      const html = await response.text();
+      let match: RegExpExecArray | null;
+
+      while ((match = linkRegex.exec(html)) !== null) {
+        const href = unwrapDuckDuckGoRedirect(match[1]);
+        const title = decodeHtmlEntities(stripHtml(match[2] ?? ""));
+        if (!href || !title || seenUrls.has(href)) continue;
+
+        const nearby = html.slice(match.index, match.index + 1500);
+        const snippetMatch = nearby.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>|<div[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/div>/i);
+        const snippetRaw = snippetMatch?.[1] ?? snippetMatch?.[2] ?? "";
+        const snippet = decodeHtmlEntities(stripHtml(snippetRaw));
+        const combined = `${title} ${snippet}`;
+        const normalizedCombined = normalizePersonName(combined);
+
+        if (!normalizedCombined.includes("epstein")) continue;
+        if (!nameAppearsInText(searchIdentity, combined)) continue;
+
+        mentions.push({
+          title,
+          snippet,
+          url: href,
+          reliability: scoreMentionReliability(href),
+        });
+        seenUrls.add(href);
+        if (mentions.length >= 5) break;
+      }
+
+      if (mentions.length > 0) break;
     }
 
     return mentions;
