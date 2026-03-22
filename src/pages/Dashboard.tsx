@@ -6,7 +6,7 @@ import { ScanOverlay } from "../components/ScanOverlay";
 import { ActionCard } from "../components/ActionCard";
 import { RecentInvestigations } from "../components/RecentInvestigations";
 import { InvestigationModal } from "../components/InvestigationModal";
-import { AiddsLogo } from "../components/AiddsLogo";
+import { IcePandaLogo } from "../components/IcePandaLogo";
 import { motion } from "framer-motion";
 
 const Dashboard = () => {
@@ -33,7 +33,7 @@ const Dashboard = () => {
             className="text-center mb-12"
           >
             <div className="flex justify-center mb-6">
-              <AiddsLogo size="large" />
+              <IcePandaLogo size="large" />
             </div>
             <p className="text-muted-foreground text-sm max-w-md mx-auto leading-relaxed">
               AI-powered due diligence. Paste a LinkedIn URL and uncover criminal records, 
