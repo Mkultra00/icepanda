@@ -9,6 +9,15 @@ export interface ResearchTarget {
   location?: string;
 }
 
+export interface BiographySection {
+  earlyLife?: string;
+  education?: string;
+  career?: string;
+  notableAchievements?: string;
+  personalLife?: string;
+  publicPresence?: string;
+}
+
 export interface FindingItem {
   title: string;
   source: string;
@@ -38,6 +47,7 @@ export interface SourceConsulted {
 
 export interface ResearchReport {
   target: ResearchTarget;
+  biography: BiographySection;
   riskLevel: "critical" | "high" | "moderate" | "low" | "clear";
   confidenceScore: number;
   riskScore: number;

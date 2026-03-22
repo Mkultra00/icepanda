@@ -27,11 +27,9 @@ const normalizeLinkedInUrl = (rawUrl: string) => {
   const trimmed = rawUrl.trim();
   const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
   const url = new URL(withProtocol);
-
   if (!url.hostname.toLowerCase().includes("linkedin.com") || !url.pathname.startsWith("/in/")) {
-    throw new Error("Please provide a valid LinkedIn profile URL (linkedin.com/in/...) ");
+    throw new Error("Please provide a valid LinkedIn profile URL (linkedin.com/in/...)");
   }
-
   url.protocol = "https:";
   url.search = "";
   url.hash = "";
@@ -47,16 +45,11 @@ const toInitials = (name?: string) => {
 const slugToNameFallback = (normalizedUrl: string) => {
   const slug = normalizedUrl.split("/in/")[1]?.split("/")[0] ?? "";
   if (!slug) return undefined;
-
-  return decodeURIComponent(slug)
-    .replace(/[._-]+/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-    .trim();
+  return decodeURIComponent(slug).replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).trim();
 };
 
 const fetchLinkedInAnchor = async (normalizedUrl: string): Promise<LinkedInAnchor> => {
   const anchor: LinkedInAnchor = { normalizedUrl };
-
   try {
     const noProtocol = normalizedUrl.replace(/^https?:\/\//i, "");
     const jinaUrl = `https://r.jina.ai/http://${noProtocol}`;
@@ -65,8 +58,6 @@ const fetchLinkedInAnchor = async (normalizedUrl: string): Promise<LinkedInAncho
 
     const titleLineMatch = markdown.match(/^Title:\s*(.+)$/m);
     const titleLine = titleLineMatch?.[1]?.trim();
-
-    // Title usually looks like: "Frank Yu - BlackChamber AI | LinkedIn"
     if (titleLine) {
       const cleaned = titleLine.replace(/\s*\|\s*LinkedIn\s*$/i, "").trim();
       const [possibleName, ...rest] = cleaned.split(" - ");
@@ -76,33 +67,21 @@ const fetchLinkedInAnchor = async (normalizedUrl: string): Promise<LinkedInAncho
 
     const h1Matches = [...markdown.matchAll(/^#\s+(.+)$/gm)].map((m) => m[1].trim());
     const firstPlainNameHeading = h1Matches.find((h) => h && !h.includes("| LinkedIn") && h.split(" ").length <= 5);
-    if (!anchor.fullName && firstPlainNameHeading) {
-      anchor.fullName = firstPlainNameHeading;
-    }
+    if (!anchor.fullName && firstPlainNameHeading) anchor.fullName = firstPlainNameHeading;
 
     const locationMatch = markdown.match(/^###\s+(.+?)\s+Contact Info\s*$/m);
-    if (locationMatch?.[1]) {
-      anchor.location = locationMatch[1].trim();
-    }
+    if (locationMatch?.[1]) anchor.location = locationMatch[1].trim();
 
     const companyMatch = markdown.match(/introduce you to \d+ people at ([^\n]+)/i);
-    if (companyMatch?.[1]) {
-      anchor.company = companyMatch[1].trim();
-    }
+    if (companyMatch?.[1]) anchor.company = companyMatch[1].trim();
 
-    if (!anchor.fullName) {
-      anchor.fullName = slugToNameFallback(normalizedUrl);
-    }
-
-    if (!anchor.initials) {
-      anchor.initials = toInitials(anchor.fullName);
-    }
+    if (!anchor.fullName) anchor.fullName = slugToNameFallback(normalizedUrl);
+    if (!anchor.initials) anchor.initials = toInitials(anchor.fullName);
   } catch (error) {
     console.warn("Could not fetch LinkedIn anchor data:", error);
     anchor.fullName = anchor.fullName ?? slugToNameFallback(normalizedUrl);
     anchor.initials = toInitials(anchor.fullName);
   }
-
   return anchor;
 };
 
@@ -115,13 +94,11 @@ const normalizeScore = (value: unknown) => {
 
 const enforceAnchorOnReport = (report: any, anchor: LinkedInAnchor) => {
   report.target = report.target ?? {};
-
   if (anchor.fullName) report.target.fullName = anchor.fullName;
   if (anchor.initials) report.target.initials = anchor.initials;
   if (anchor.title) report.target.title = anchor.title;
   if (anchor.company) report.target.company = anchor.company;
   if (anchor.location) report.target.location = anchor.location;
-
   if (!report.target.title) report.target.title = "LinkedIn Profile";
   if (!report.target.company) report.target.company = "Unspecified";
   if (!report.target.location) report.target.location = "Unknown";
@@ -129,26 +106,21 @@ const enforceAnchorOnReport = (report: any, anchor: LinkedInAnchor) => {
   report.confidenceScore = normalizeScore(report.confidenceScore);
   report.riskScore = normalizeScore(report.riskScore);
 
+  report.biography = report.biography ?? {};
+
   const identitySignals = Array.isArray(report.identitySignals) ? report.identitySignals : [];
   identitySignals.unshift({ label: `LinkedIn URL anchored: ${anchor.normalizedUrl}`, verified: true });
   report.identitySignals = identitySignals;
 
   const sources = Array.isArray(report.sourcesConsulted) ? report.sourcesConsulted : [];
-  sources.unshift({
-    name: "LinkedIn Public Profile",
-    reliability: "HIGH",
-    status: `Anchored to ${anchor.normalizedUrl}`,
-  });
+  sources.unshift({ name: "LinkedIn Public Profile", reliability: "HIGH", status: `Anchored to ${anchor.normalizedUrl}` });
   report.sourcesConsulted = sources;
 
   const existingFindings = Array.isArray(report.findings) ? report.findings : [];
   const byCategory = new Map(existingFindings.map((f: any) => [f.category, f]));
   report.findings = REQUIRED_CATEGORIES.map((category) => {
     const current = byCategory.get(category);
-    return {
-      category,
-      items: Array.isArray(current?.items) ? current.items : [],
-    };
+    return { category, items: Array.isArray(current?.items) ? current.items : [] };
   });
 
   return report;
@@ -165,12 +137,9 @@ serve(async (req) => {
     const normalizedLinkedInUrl = normalizeLinkedInUrl(linkedinUrl);
     const anchor = await fetchLinkedInAnchor(normalizedLinkedInUrl);
 
-    const scopeList = Object.entries(scopes || {})
-      .filter(([_, v]) => v)
-      .map(([k]) => k)
-      .join(", ");
+    const scopeList = Object.entries(scopes || {}).filter(([_, v]) => v).map(([k]) => k).join(", ");
 
-    const systemPrompt = `You are I.C.E Panda, an expert due diligence research AI.
+    const systemPrompt = `You are I.C.E Panda, an expert due diligence and intelligence research AI. You produce comprehensive life briefings and risk assessments.
 
 CRITICAL IDENTITY RULES:
 1) The target identity is anchored to this exact LinkedIn URL: ${anchor.normalizedUrl}
@@ -182,15 +151,27 @@ CRITICAL IDENTITY RULES:
 3) Never switch to a different same-name person.
 4) If evidence conflicts, keep the anchored identity and lower confidence.
 
+BIOGRAPHY INSTRUCTIONS:
+Research and compile a comprehensive life briefing. For each biography section, write 2-4 detailed sentences based on publicly available information. If information is not available for a section, write "No public information available." Include:
+- earlyLife: Where they grew up, family background if public, formative years
+- education: Schools, universities, degrees, academic achievements
+- career: Full career trajectory from earliest known role to current position, key transitions
+- notableAchievements: Awards, publications, patents, major deals, public recognition
+- personalLife: Public interests, board memberships, philanthropy, community involvement
+- publicPresence: Media appearances, social media activity, public speaking, thought leadership
+
+DUE DILIGENCE INSTRUCTIONS:
+Also produce thorough risk findings across all categories. Be factual and cite real public databases. If no adverse findings exist in a category, return an empty items array for that category.
+
 Return ONLY structured report JSON via tool call.`;
 
-    const userPrompt = `Investigate this person:
+    const userPrompt = `Investigate this person and create a comprehensive life briefing report:
 LinkedIn URL: ${normalizedLinkedInUrl}
 ${context ? `Additional context: ${context}` : ""}
 
 Research scope: ${scopeList || "all categories"}
 
-Produce a comprehensive due diligence report with realistic findings and sources.`;
+Produce a comprehensive due diligence report with a detailed biographical briefing and risk findings based on publicly available information.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -209,7 +190,7 @@ Produce a comprehensive due diligence report with realistic findings and sources
             type: "function",
             function: {
               name: "submit_report",
-              description: "Submit the structured due diligence report",
+              description: "Submit the structured due diligence report with life briefing",
               parameters: {
                 type: "object",
                 properties: {
@@ -223,6 +204,18 @@ Produce a comprehensive due diligence report with realistic findings and sources
                       location: { type: "string" },
                     },
                     required: ["fullName", "title", "company", "initials"],
+                  },
+                  biography: {
+                    type: "object",
+                    description: "Comprehensive life briefing sections",
+                    properties: {
+                      earlyLife: { type: "string", description: "Early life, upbringing, family background" },
+                      education: { type: "string", description: "Educational history, degrees, institutions" },
+                      career: { type: "string", description: "Full career trajectory and key roles" },
+                      notableAchievements: { type: "string", description: "Awards, publications, major accomplishments" },
+                      personalLife: { type: "string", description: "Public interests, philanthropy, community" },
+                      publicPresence: { type: "string", description: "Media, social media, public speaking" },
+                    },
                   },
                   riskLevel: { type: "string", enum: ["critical", "high", "moderate", "low", "clear"] },
                   confidenceScore: { type: "number" },
@@ -279,7 +272,7 @@ Produce a comprehensive due diligence report with realistic findings and sources
                     },
                   },
                 },
-                required: ["target", "riskLevel", "confidenceScore", "riskScore", "executiveSummary", "findings", "identitySignals", "sourcesConsulted"],
+                required: ["target", "biography", "riskLevel", "confidenceScore", "riskScore", "executiveSummary", "findings", "identitySignals", "sourcesConsulted"],
               },
             },
           },
@@ -291,14 +284,12 @@ Produce a comprehensive due diligence report with realistic findings and sources
     if (!response.ok) {
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limited. Please try again in a moment." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (response.status === 402) {
         return new Response(JSON.stringify({ error: "AI credits exhausted. Please add funds in Settings." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const errText = await response.text();
@@ -308,10 +299,7 @@ Produce a comprehensive due diligence report with realistic findings and sources
 
     const aiResponse = await response.json();
     const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
-
-    if (!toolCall) {
-      throw new Error("No structured response from AI");
-    }
+    if (!toolCall) throw new Error("No structured response from AI");
 
     const report = JSON.parse(toolCall.function.arguments);
     const anchoredReport = enforceAnchorOnReport(report, anchor);
@@ -322,8 +310,7 @@ Produce a comprehensive due diligence report with realistic findings and sources
   } catch (e) {
     console.error("Research error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

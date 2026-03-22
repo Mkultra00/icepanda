@@ -6,7 +6,7 @@ import { ScanOverlay } from "../components/ScanOverlay";
 import {
   Shield, AlertTriangle, Scale, FileText, Globe, Search,
   Download, Share2, Volume2, MessageSquare, ChevronDown, ChevronRight,
-  ExternalLink, MapPin
+  ExternalLink, MapPin, GraduationCap, Briefcase, Award, User, Mic
 } from "lucide-react";
 import { ResearchReport } from "../hooks/useResearch";
 
@@ -28,7 +28,7 @@ const colorMap: Record<string, string> = {
   "Epstein Files": "#F59E0B",
 };
 
-const tabs = ["Executive Summary", "Findings", "Network", "Map", "Sources"];
+const tabs = ["Briefing", "Findings", "Sources"];
 
 const severityBadge: Record<string, string> = {
   critical: "badge-critical",
@@ -60,6 +60,15 @@ const reliabilityColor: Record<string, string> = {
   LOW: "text-orange-400",
 };
 
+const bioSections = [
+  { key: "earlyLife", label: "Early Life", icon: User, color: "#3B82F6" },
+  { key: "education", label: "Education", icon: GraduationCap, color: "#8B5CF6" },
+  { key: "career", label: "Career", icon: Briefcase, color: "#10B981" },
+  { key: "notableAchievements", label: "Notable Achievements", icon: Award, color: "#F59E0B" },
+  { key: "personalLife", label: "Personal Life", icon: User, color: "#EC4899" },
+  { key: "publicPresence", label: "Public Presence", icon: Mic, color: "#06B6D4" },
+] as const;
+
 const ReportPage = () => {
   const navigate = useNavigate();
   const [report, setReport] = useState<ResearchReport | null>(null);
@@ -72,7 +81,6 @@ const ReportPage = () => {
     if (stored) {
       const parsed = JSON.parse(stored) as ResearchReport;
       setReport(parsed);
-      // Auto-expand categories with findings
       const expanded: Record<string, boolean> = {};
       parsed.findings?.forEach(f => {
         if (f.items.length > 0) expanded[f.category] = true;
@@ -112,6 +120,11 @@ const ReportPage = () => {
               <div>
                 <h1 className="text-xl font-bold text-foreground">{report.target.fullName}</h1>
                 <p className="text-sm text-muted-foreground">{report.target.title} — {report.target.company}</p>
+                {report.target.location && (
+                  <p className="text-xs text-muted-foreground/70 flex items-center gap-1 mt-0.5">
+                    <MapPin className="w-3 h-3" />{report.target.location}
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -155,7 +168,7 @@ const ReportPage = () => {
             ))}
           </div>
 
-          {/* Executive Summary */}
+          {/* Briefing Tab */}
           {activeTab === 0 && (
             <motion.div
               initial={{ opacity: 0, y: 12 }}
@@ -163,6 +176,7 @@ const ReportPage = () => {
               transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
               className="space-y-6"
             >
+              {/* Metrics */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
                   { label: "Identity Confidence", value: `${report.confidenceScore}%`, sub: "AI-verified match" },
@@ -176,10 +190,40 @@ const ReportPage = () => {
                   </motion.div>
                 ))}
               </div>
+
+              {/* Executive Summary */}
               <div className="glass rounded-xl p-6">
-                <h3 className="text-sm font-semibold text-foreground mb-3">Overall Assessment</h3>
+                <h3 className="text-sm font-semibold text-foreground mb-3">Executive Summary</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{report.executiveSummary}</p>
               </div>
+
+              {/* Life Briefing */}
+              {report.biography && (
+                <div className="space-y-3">
+                  <h3 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Life Briefing</h3>
+                  {bioSections.map(({ key, label, icon: Icon, color }, i) => {
+                    const content = report.biography?.[key as keyof typeof report.biography];
+                    if (!content || content === "No public information available.") return null;
+                    return (
+                      <motion.div
+                        key={key}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.15 + i * 0.08, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                        className="glass rounded-xl p-5"
+                      >
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-7 h-7 rounded-md flex items-center justify-center" style={{ backgroundColor: `${color}15`, border: `1px solid ${color}30` }}>
+                            <Icon className="w-3.5 h-3.5" style={{ color }} />
+                          </div>
+                          <h4 className="text-sm font-semibold text-foreground">{label}</h4>
+                        </div>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{content}</p>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -239,26 +283,8 @@ const ReportPage = () => {
             </motion.div>
           )}
 
-          {activeTab === 2 && (
-            <div className="glass rounded-xl p-12 text-center">
-              <div className="w-16 h-16 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4">
-                <Globe className="w-8 h-8 text-primary" />
-              </div>
-              <p className="text-sm text-muted-foreground">Network graph visualization — coming next</p>
-            </div>
-          )}
-
-          {activeTab === 3 && (
-            <div className="glass rounded-xl p-12 text-center">
-              <div className="w-16 h-16 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4">
-                <MapPin className="w-8 h-8 text-primary" />
-              </div>
-              <p className="text-sm text-muted-foreground">Geographic map visualization — coming next</p>
-            </div>
-          )}
-
           {/* Sources */}
-          {activeTab === 4 && (
+          {activeTab === 2 && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass rounded-xl p-6 space-y-4">
               <h3 className="text-sm font-semibold text-foreground mb-4">Sources Consulted</h3>
               {report.sourcesConsulted.map((src, i) => (
