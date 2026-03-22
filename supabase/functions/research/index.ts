@@ -99,11 +99,30 @@ const scoreMentionReliability = (url: string): "HIGH" | "MEDIUM" | "LOW" => {
   return "LOW";
 };
 
+const NAME_STOPWORDS = new Set(["dr", "mr", "mrs", "ms", "prof", "professor", "sir"]);
+
+const tokenizeIdentity = (value: string) =>
+  normalizePersonName(value)
+    .split(" ")
+    .filter(Boolean)
+    .filter((token) => !NAME_STOPWORDS.has(token));
+
 const nameAppearsInText = (name: string, text: string) => {
-  const nameTokens = normalizePersonName(name).split(" ").filter(Boolean);
-  const textNorm = normalizePersonName(text);
-  if (!nameTokens.length) return false;
-  return nameTokens.every((token) => textNorm.includes(token));
+  const nameTokens = tokenizeIdentity(name);
+  const textTokens = tokenizeIdentity(text);
+  if (!nameTokens.length || !textTokens.length) return false;
+
+  const shared = nameTokens.filter((token) => textTokens.includes(token));
+  if (shared.length >= Math.min(2, nameTokens.length)) return true;
+
+  const nameLast = nameTokens[nameTokens.length - 1];
+  const firstInitial = nameTokens[0]?.[0];
+  return Boolean(
+    nameLast &&
+      firstInitial &&
+      textTokens.includes(nameLast) &&
+      textTokens.some((token) => token[0] === firstInitial),
+  );
 };
 
 const searchEpsteinWebMentions = async (fullName: string): Promise<WebMention[]> => {
