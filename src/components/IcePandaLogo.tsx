@@ -24,7 +24,7 @@ export const IcePandaLogo = ({ size = "default" }: { size?: "default" | "large" 
         <img
           src={pandaBody}
           alt="I.C.E. Panda"
-          className="relative z-20 w-full h-full rounded-lg object-contain"
+          className="relative z-20 w-full h-full object-contain"
           draggable={false}
         />
 
