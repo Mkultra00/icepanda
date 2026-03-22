@@ -33,6 +33,15 @@ const BIOGRAPHY_KEYS = [
   "publicPresence",
 ] as const;
 
+const PSYCH_PROFILE_KEYS = [
+  "personalityTraits",
+  "motivations",
+  "communicationStyle",
+  "leadershipStyle",
+  "riskTolerance",
+  "potentialVulnerabilities",
+] as const;
+
 const toInitials = (name?: string) => {
   if (!name) return "NA";
   const parts = name.split(/\s+/).filter(Boolean);
