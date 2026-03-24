@@ -10,6 +10,7 @@ import {
   Brain, Target, MessageCircle, Crown, Gauge, ShieldAlert
 } from "lucide-react";
 import { ResearchReport } from "../hooks/useResearch";
+import { generateReportPdf } from "../utils/generateReportPdf";
 
 const iconMap: Record<string, typeof Shield> = {
   "Criminal": Shield,
