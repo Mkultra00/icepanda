@@ -159,11 +159,11 @@ const ReportPage = () => {
           {/* Action buttons */}
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="flex gap-2 mb-6">
             {[
-              { icon: Download, label: "Download PDF" },
-              { icon: Share2, label: "Share" },
-              { icon: Volume2, label: "Voice Briefing" },
+              { icon: Download, label: "Download PDF", onClick: () => report && generateReportPdf(report) },
+              { icon: Share2, label: "Share", onClick: () => {} },
+              { icon: Volume2, label: "Voice Briefing", onClick: () => {} },
             ].map(btn => (
-              <button key={btn.label} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/50 border border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all active:scale-[0.97]">
+              <button key={btn.label} onClick={btn.onClick} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/50 border border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all active:scale-[0.97]">
                 <btn.icon className="w-3.5 h-3.5" />
                 {btn.label}
               </button>
